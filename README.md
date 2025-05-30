@@ -18,6 +18,7 @@ A comprehensive, modular Go framework providing production-ready components for 
 - **[config](#config-package)** - Environment variable configuration loader with struct tag support
 - **[database](#database-package)** - Database abstraction supporting PostgreSQL, MySQL, SQLite, and Turso
 - **[krypto](#krypto-package)** - Comprehensive cryptographic utilities (JWT, hashing, encryption)
+- **[cache](#cache-package)** - Flexible caching with in-memory and Redis drivers
 
 ### Service Integrations
 - **[captcha](#captcha-package)** - Multi-provider CAPTCHA service (Google reCAPTCHA, hCaptcha, Cloudflare Turnstile)
@@ -158,6 +159,99 @@ defer database.Shutdown(context.Background())
 ```
 
 [Read full documentation →](database/README.md)
+
+### Cache Package
+
+A flexible caching solution supporting both in-memory and Redis backends. Switch drivers with just an environment variable - no code changes required.
+
+#### Key Features
+
+- **Multiple Drivers** - Built-in memory cache and Redis support
+- **Zero Code Changes** - Switch drivers via environment variables  
+- **Connection Pooling** - Optimized Redis connection management
+- **TTL Support** - Set expiration times for cached values
+- **Namespace Isolation** - Separate cache spaces with prefixes
+- **Thread-Safe** - Safe for concurrent use
+
+#### Configuration
+
+| Environment Variable | Description | Default |
+|---------------------|-------------|---------|
+| `BEAVER_CACHE_DRIVER` | Cache driver (`memory` or `redis`) | `memory` |
+| `BEAVER_CACHE_HOST` | Redis host | `localhost` |
+| `BEAVER_CACHE_PORT` | Redis port | `6379` |
+| `BEAVER_CACHE_PASSWORD` | Redis password | - |
+| `BEAVER_CACHE_DATABASE` | Redis database number | `0` |
+| `BEAVER_CACHE_URL` | Redis URL (overrides host/port) | - |
+| `BEAVER_CACHE_KEY_PREFIX` | Prefix for all keys | - |
+| `BEAVER_CACHE_NAMESPACE` | Namespace for isolation | - |
+| `BEAVER_CACHE_MAX_SIZE` | Max memory in bytes (memory driver) | `0` (unlimited) |
+| `BEAVER_CACHE_MAX_KEYS` | Max number of keys (memory driver) | `0` (unlimited) |
+| `BEAVER_CACHE_DEFAULT_TTL` | Default TTL (e.g., "5m", "1h") | `0` (no expiry) |
+
+#### Usage
+
+```go
+import "github.com/gobeaver/beaver-kit/cache"
+
+// Initialize from environment (BEAVER_CACHE_DRIVER=memory or redis)
+if err := cache.Init(); err != nil {
+    log.Fatal(err)
+}
+
+ctx := context.Background()
+
+// Store a value with TTL
+err := cache.Set(ctx, "user:123", []byte("John Doe"), 5*time.Minute)
+
+// Retrieve a value
+data, err := cache.Get(ctx, "user:123")
+if err == nil {
+    fmt.Printf("User: %s\n", string(data))
+}
+
+// Check if key exists
+exists, err := cache.Exists(ctx, "user:123")
+
+// Delete a key
+cache.Delete(ctx, "user:123")
+
+// Clear all keys (with prefix if configured)
+cache.Clear(ctx)
+
+// Health check
+if cache.IsHealthy() {
+    fmt.Println("Cache is operational")
+}
+
+// Switch drivers without code changes:
+// Development: BEAVER_CACHE_DRIVER=memory
+// Production:  BEAVER_CACHE_DRIVER=redis
+```
+
+#### Driver-Specific Configuration
+
+```go
+// In-memory cache with limits
+memCache, err := cache.New(cache.Config{
+    Driver:    "memory",
+    MaxKeys:   10000,
+    MaxSize:   100 * 1024 * 1024, // 100MB
+    DefaultTTL: 10 * time.Minute,
+})
+
+// Redis cache with connection pooling
+redisCache, err := cache.New(cache.Config{
+    Driver:     "redis",
+    Host:       "localhost",
+    Port:       "6379", 
+    Database:   0,
+    PoolSize:   20,
+    KeyPrefix:  "myapp:",
+})
+```
+
+[Read full documentation →](cache/README.md)
 
 ### Krypto Package
 
@@ -443,6 +537,7 @@ All packages use the `BEAVER_` prefix for environment variables:
 
 ```bash
 BEAVER_DB_DRIVER=postgres
+BEAVER_CACHE_DRIVER=redis
 BEAVER_SLACK_WEBHOOK_URL=https://...
 BEAVER_CAPTCHA_ENABLED=true
 BEAVER_URLSIGNER_SECRET_KEY=secret
@@ -484,6 +579,7 @@ import (
     "time"
     
     "github.com/gobeaver/beaver-kit/database"
+    "github.com/gobeaver/beaver-kit/cache"
     "github.com/gobeaver/beaver-kit/captcha"
     "github.com/gobeaver/beaver-kit/slack"
     "github.com/gobeaver/beaver-kit/filekit"
@@ -502,6 +598,9 @@ type User struct {
 func main() {
     // Initialize all services from environment
     if err := database.Init(); err != nil {
+        log.Fatal(err)
+    }
+    if err := cache.Init(); err != nil {
         log.Fatal(err)
     }
     if err := captcha.Init(); err != nil {
@@ -572,6 +671,11 @@ func main() {
             return
         }
         
+        // Cache user session
+        sessionKey := fmt.Sprintf("session:%s", token)
+        userJSON := fmt.Sprintf(`{"id": %d, "email": "%s"}`, user.ID, user.Email)
+        cache.Set(r.Context(), sessionKey, []byte(userJSON), 24*time.Hour)
+        
         // Notify team
         slackService.SendInfo(fmt.Sprintf("New user registered: %s", user.Email))
         
@@ -581,6 +685,20 @@ func main() {
     })
     
     http.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
+        // Rate limiting with cache
+        clientIP := r.RemoteAddr
+        rateLimitKey := fmt.Sprintf("rate_limit:%s", clientIP)
+        
+        // Check if rate limit exceeded
+        if data, err := cache.Get(r.Context(), rateLimitKey); err == nil {
+            // Client already made a request within the window
+            http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
+            return
+        }
+        
+        // Set rate limit for 1 minute
+        cache.Set(r.Context(), rateLimitKey, []byte("1"), 1*time.Minute)
+        
         // Parse multipart form
         r.ParseMultipartForm(10 << 20)
         
@@ -635,6 +753,7 @@ All packages include testing utilities:
 func TestMyFeature(t *testing.T) {
     // Reset global state after test
     defer database.Reset()
+    defer cache.Reset()
     defer slack.Reset()
     defer captcha.Reset()
     
@@ -644,7 +763,16 @@ func TestMyFeature(t *testing.T) {
         Database: ":memory:",
     }
     
+    testCacheConfig := cache.Config{
+        Driver: "memory",
+        MaxKeys: 1000,
+    }
+    
     if err := database.Init(testDBConfig); err != nil {
+        t.Fatal(err)
+    }
+    
+    if err := cache.Init(testCacheConfig); err != nil {
         t.Fatal(err)
     }
     
