@@ -65,20 +65,48 @@ func DefaultSignatureParams() SignatureParams {
 	}
 }
 
-// GetConfig returns config loaded from environment
-func GetConfig() (*Config, error) {
+// Builder provides a way to create URL signer instances with custom prefixes
+type Builder struct {
+	prefix string
+}
+
+// WithPrefix creates a new Builder with the specified prefix
+func WithPrefix(prefix string) *Builder {
+	return &Builder{prefix: prefix}
+}
+
+// Init initializes the global URL signer using the builder's prefix
+func (b *Builder) Init() error {
+	cfg, err := b.GetConfig()
+	if err != nil {
+		return err
+	}
+	return Init(*cfg)
+}
+
+// New creates a new URL signer using the builder's prefix
+func (b *Builder) New() (*Signer, error) {
+	cfg, err := b.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	return New(*cfg)
+}
+
+// GetConfig returns config loaded using the builder's prefix
+func (b *Builder) GetConfig() (*Config, error) {
 	// Create a temporary struct to handle string duration
 	type tempConfig struct {
-		SecretKey      string `env:"BEAVER_URLSIGNER_SECRET_KEY,required"`
-		DefaultExpiry  string `env:"BEAVER_URLSIGNER_DEFAULT_EXPIRY,default:30m"`
-		Algorithm      string `env:"BEAVER_URLSIGNER_ALGORITHM,default:sha256"`
-		SignatureParam string `env:"BEAVER_URLSIGNER_SIGNATURE_PARAM,default:sig"`
-		ExpiresParam   string `env:"BEAVER_URLSIGNER_EXPIRES_PARAM,default:expires"`
-		PayloadParam   string `env:"BEAVER_URLSIGNER_PAYLOAD_PARAM,default:payload"`
+		SecretKey      string `env:"URLSIGNER_SECRET_KEY,required"`
+		DefaultExpiry  string `env:"URLSIGNER_DEFAULT_EXPIRY,default:30m"`
+		Algorithm      string `env:"URLSIGNER_ALGORITHM,default:sha256"`
+		SignatureParam string `env:"URLSIGNER_SIGNATURE_PARAM,default:sig"`
+		ExpiresParam   string `env:"URLSIGNER_EXPIRES_PARAM,default:expires"`
+		PayloadParam   string `env:"URLSIGNER_PAYLOAD_PARAM,default:payload"`
 	}
 
 	tmpCfg := &tempConfig{}
-	if err := config.Load(tmpCfg); err != nil {
+	if err := config.Load(tmpCfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
 		return nil, err
 	}
 
@@ -98,6 +126,12 @@ func GetConfig() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// GetConfig returns config loaded from environment using default BEAVER_ prefix
+func GetConfig() (*Config, error) {
+	builder := WithPrefix("BEAVER_")
+	return builder.GetConfig()
 }
 
 // Init initializes the global instance with optional config

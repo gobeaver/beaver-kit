@@ -7,10 +7,20 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 )
 
+// LoadOptions defines options for loading configuration
+type LoadOptions struct {
+	Prefix string
+}
+
 // Load populates a struct from .env file and environment variables
-func Load(cfg interface{}) error {
+func Load(cfg interface{}, opts ...LoadOptions) error {
+	options := LoadOptions{Prefix: "BEAVER_"} // Default
+	if len(opts) > 0 {
+		options = opts[0]
+	}
 	// Silently try to load .env file, ignore if not found
 	dotenv.Load()
 
@@ -36,12 +46,14 @@ func Load(cfg interface{}) error {
 			}
 		}
 
-		value := os.Getenv(envName)
+		// Apply prefix to environment variable name
+		fullEnvName := options.Prefix + envName
+		value := os.Getenv(fullEnvName)
 		if value == "" {
 			value = defaultValue
 		}
 		if printDebug || os.Getenv("env") == "development" || os.Getenv("env") == "test" || os.Getenv("env") == "dev" {
-			fmt.Printf("[BEAVER] %s=%s\n", envName, value)
+			fmt.Printf("[BEAVER] %s=%s\n", fullEnvName, value)
 		}
 
 		if value != "" {
@@ -55,6 +67,16 @@ func Load(cfg interface{}) error {
 }
 
 func setFieldValue(field reflect.Value, value string) error {
+	// Check for time.Duration first
+	if field.Type() == reflect.TypeOf(time.Duration(0)) {
+		d, err := time.ParseDuration(value)
+		if err != nil {
+			return err
+		}
+		field.Set(reflect.ValueOf(d))
+		return nil
+	}
+
 	switch field.Kind() {
 	case reflect.String:
 		field.SetString(value)
@@ -70,6 +92,9 @@ func setFieldValue(field reflect.Value, value string) error {
 			return err
 		}
 		field.SetBool(b)
+	default:
+		// Skip unsupported field types silently
+		return nil
 	}
 	return nil
 }

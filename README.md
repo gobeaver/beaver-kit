@@ -21,6 +21,7 @@ A comprehensive, modular Go framework providing production-ready components for 
 
 - **🔧 Modular Design**: Use only what you need - each package is independent
 - **🌍 Environment-First Configuration**: All packages support environment variables with the `BEAVER_` prefix
+- **🎯 Configurable Prefixes**: Create multiple instances with custom environment variable prefixes
 - **🔒 Secure by Default**: Built-in security features across all components
 - **📦 Minimal Dependencies**: Lightweight core with optional integrations
 - **🧪 Testing-Friendly**: Built-in support for testing with Reset() functions
@@ -90,6 +91,35 @@ func main() {
         slack.Slack().SendWarning("Invalid CAPTCHA attempt")
     }
 }
+```
+
+### Using Custom Prefixes
+
+Build multiple instances with different configurations:
+
+```go
+// Default instance with BEAVER_ prefix
+if err := database.Init(); err != nil {
+    log.Fatal(err)
+}
+defaultDB := database.DB()
+
+// AWS-compatible instance (no prefix)
+if err := cache.WithPrefix("").Init(); err != nil {
+    log.Fatal(err)
+}
+// Uses: AWS_REGION, AWS_ACCESS_KEY_ID, etc.
+
+// Custom prefix for multi-tenant apps
+if err := database.WithPrefix("TENANT1_").Init(); err != nil {
+    log.Fatal(err)
+}
+// Uses: TENANT1_DB_HOST, TENANT1_DB_DATABASE, etc.
+
+if err := database.WithPrefix("TENANT2_").Init(); err != nil {
+    log.Fatal(err)
+}
+// Uses: TENANT2_DB_HOST, TENANT2_DB_DATABASE, etc.
 ```
 
 ## 📚 Package Documentation
@@ -548,14 +578,35 @@ defer package.Reset()
 
 ### Environment Variables
 
-All packages use the `BEAVER_` prefix for environment variables:
+All packages use the `BEAVER_` prefix by default, but this is configurable:
 
 ```bash
+# Default prefix (backward compatible)
 BEAVER_DB_DRIVER=postgres
 BEAVER_CACHE_DRIVER=redis
 BEAVER_SLACK_WEBHOOK_URL=https://...
-BEAVER_CAPTCHA_ENABLED=true
-BEAVER_URLSIGNER_SECRET_KEY=secret
+
+# Custom prefix example
+MYAPP_DB_DRIVER=postgres
+MYAPP_CACHE_DRIVER=redis
+
+# No prefix (AWS-style)
+DB_DRIVER=postgres
+CACHE_DRIVER=redis
+```
+
+Configure custom prefixes using the Builder pattern:
+
+```go
+// Use custom prefix
+if err := database.WithPrefix("MYAPP_").Init(); err != nil {
+    log.Fatal(err)
+}
+
+// Use no prefix
+if err := cache.WithPrefix("").Init(); err != nil {
+    log.Fatal(err)
+}
 ```
 
 Enable debug mode to see loaded configuration:

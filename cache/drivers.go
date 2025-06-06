@@ -13,8 +13,8 @@ func memoryRegister(cfg Config) (Cache, error) {
 	memCfg := memory.Config{
 		MaxSize:         cfg.MaxSize,
 		MaxKeys:         cfg.MaxKeys,
-		DefaultTTL:      cfg.DefaultTTL,
-		CleanupInterval: cfg.CleanupInterval,
+		DefaultTTL:      cfg.ParsedDefaultTTL(),
+		CleanupInterval: cfg.ParsedCleanupInterval(),
 		KeyPrefix:       cfg.KeyPrefix,
 		Namespace:       cfg.Namespace,
 	}

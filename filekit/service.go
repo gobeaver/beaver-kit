@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gobeaver/beaver-kit/config"
 	"github.com/gobeaver/beaver-kit/filevalidator"
 )
 
@@ -18,6 +19,34 @@ var (
 	defaultOnce sync.Once
 	defaultErr  error
 )
+
+// Builder provides a way to create FileSystem instances with custom prefixes
+type Builder struct {
+	prefix string
+}
+
+// WithPrefix creates a new Builder with the specified prefix
+func WithPrefix(prefix string) *Builder {
+	return &Builder{prefix: prefix}
+}
+
+// Init initializes the global FileSystem instance using the builder's prefix
+func (b *Builder) Init() error {
+	cfg := &Config{}
+	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+		return err
+	}
+	return Init(*cfg)
+}
+
+// New creates a new FileSystem instance using the builder's prefix
+func (b *Builder) New() (FileSystem, error) {
+	cfg := &Config{}
+	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+		return nil, err
+	}
+	return New(*cfg)
+}
 
 // Init initializes the global file system instance
 func Init(configs ...Config) error {

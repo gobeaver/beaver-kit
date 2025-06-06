@@ -70,7 +70,7 @@ This document tracks the implementation tasks for beaver-kit packages and featur
 - [ ] **OAuth2/Social Login** - Multiple provider authentication
   - Google, GitHub, Facebook, etc.
   - PKCE support
-  - Token refresh handling
+  - Token refresh handlin
 - [ ] **Metrics/Monitoring** - Prometheus integration
   - Custom metrics registration
   - Default HTTP/gRPC metrics

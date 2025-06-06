@@ -5,6 +5,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"github.com/gobeaver/beaver-kit/config"
 )
 
 // Global instances
@@ -22,6 +24,34 @@ var (
 	ErrKeyNotFound    = errors.New("key not found")
 	ErrInvalidTTL     = errors.New("invalid TTL value")
 )
+
+// Builder provides a way to create cache instances with custom prefixes
+type Builder struct {
+	prefix string
+}
+
+// WithPrefix creates a new Builder with the specified prefix
+func WithPrefix(prefix string) *Builder {
+	return &Builder{prefix: prefix}
+}
+
+// Init initializes the global cache instance using the builder's prefix
+func (b *Builder) Init() error {
+	cfg := &Config{}
+	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+		return err
+	}
+	return Init(*cfg)
+}
+
+// New creates a new cache instance using the builder's prefix
+func (b *Builder) New() (Cache, error) {
+	cfg := &Config{}
+	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+		return nil, err
+	}
+	return New(*cfg)
+}
 
 
 // Init initializes the global cache instance with optional config

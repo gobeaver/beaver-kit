@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gobeaver/beaver-kit/config"
+
 	// Database drivers - pure Go implementations for CGO-free builds
 	_ "github.com/go-sql-driver/mysql"      // MySQL - already pure Go
 	_ "github.com/jackc/pgx/v5/stdlib"      // PostgreSQL - pure Go, performant
@@ -44,6 +46,50 @@ var (
 	ErrInvalidConfig  = errors.New("invalid database configuration")
 	ErrGORMNotEnabled = errors.New("GORM not enabled - set BEAVER_DB_ORM=gorm or use WithGORM()")
 )
+
+// Builder provides a way to create database instances with custom prefixes
+type Builder struct {
+	prefix string
+}
+
+// WithPrefix creates a new Builder with the specified prefix
+func WithPrefix(prefix string) *Builder {
+	return &Builder{prefix: prefix}
+}
+
+// Init initializes the global database instance using the builder's prefix
+func (b *Builder) Init() error {
+	cfg := &Config{}
+	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+		return err
+	}
+	return Init(*cfg)
+}
+
+// New creates a new database connection using the builder's prefix
+func (b *Builder) New() (*sql.DB, error) {
+	cfg := &Config{}
+	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+		return nil, err
+	}
+	return New(*cfg)
+}
+
+// NewGORM creates a new GORM instance using the builder's prefix
+func (b *Builder) NewGORM() (*gorm.DB, error) {
+	cfg := &Config{}
+	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+		return nil, err
+	}
+	cfg.UseORM = "gorm"
+	
+	sqlDB, err := New(*cfg)
+	if err != nil {
+		return nil, err
+	}
+	
+	return NewGORM(*cfg, sqlDB)
+}
 
 // Init initializes the global SQL database instance with optional config
 func Init(configs ...Config) error {

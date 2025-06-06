@@ -15,7 +15,7 @@ func TestCacheService(t *testing.T) {
 			Driver:    "memory",
 			MaxKeys:   100,
 			MaxSize:   1024 * 1024, // 1MB
-			DefaultTTL: 5 * time.Minute,
+			DefaultTTL: "5m",
 		}
 
 		c, err := cache.New(cfg)

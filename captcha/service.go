@@ -15,6 +15,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gobeaver/beaver-kit/config"
 )
 
 // Global instance management
@@ -32,6 +34,34 @@ var (
 	ErrInvalidProvider  = errors.New("invalid captcha provider")
 	ErrKeysRequired     = errors.New("site key and secret key required")
 )
+
+// Builder provides a way to create CAPTCHA service instances with custom prefixes
+type Builder struct {
+	prefix string
+}
+
+// WithPrefix creates a new Builder with the specified prefix
+func WithPrefix(prefix string) *Builder {
+	return &Builder{prefix: prefix}
+}
+
+// Init initializes the global CAPTCHA service using the builder's prefix
+func (b *Builder) Init() error {
+	cfg := &Config{}
+	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+		return err
+	}
+	return Init(*cfg)
+}
+
+// New creates a new CAPTCHA service using the builder's prefix
+func (b *Builder) New() (CaptchaService, error) {
+	cfg := &Config{}
+	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+		return nil, err
+	}
+	return New(*cfg)
+}
 
 // Init initializes the global instance with optional config
 func Init(configs ...Config) error {

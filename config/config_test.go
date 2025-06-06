@@ -110,7 +110,7 @@ func TestLoad(t *testing.T) {
 			}
 
 			cfg := &TestConfig{}
-			err := Load(cfg)
+			err := Load(cfg, LoadOptions{Prefix: ""})
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Load() error = %v, wantErr %v", err, tt.wantErr)
@@ -146,7 +146,7 @@ func TestLoadWithDebug(t *testing.T) {
 	defer os.Unsetenv("TEST_STRING")
 
 	cfg := &TestConfig{}
-	err := Load(cfg)
+	err := Load(cfg, LoadOptions{Prefix: ""})
 	if err != nil {
 		t.Errorf("Load() with debug enabled failed: %v", err)
 	}
@@ -245,7 +245,7 @@ func TestComplexEnvTag(t *testing.T) {
 	}
 
 	cfg := &ComplexConfig{}
-	err := Load(cfg)
+	err := Load(cfg, LoadOptions{Prefix: ""})
 	if err != nil {
 		t.Errorf("Load() failed: %v", err)
 	}
@@ -271,7 +271,7 @@ func TestUnsupportedFieldType(t *testing.T) {
 	defer os.Unsetenv("TEST_FLOAT")
 
 	cfg := &UnsupportedConfig{}
-	err := Load(cfg)
+	err := Load(cfg, LoadOptions{Prefix: ""})
 	if err != nil {
 		t.Errorf("Load() should not error for unsupported types, got: %v", err)
 	}

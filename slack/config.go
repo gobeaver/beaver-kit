@@ -8,12 +8,12 @@ import (
 
 // Config defines slack configuration
 type Config struct {
-	WebhookURL string        `env:"BEAVER_SLACK_WEBHOOK_URL"`
-	Channel    string        `env:"BEAVER_SLACK_CHANNEL"`
-	Username   string        `env:"BEAVER_SLACK_USERNAME,default:Beaver"`
-	IconEmoji  string        `env:"BEAVER_SLACK_ICON_EMOJI"`
-	IconURL    string        `env:"BEAVER_SLACK_ICON_URL"`
-	Timeout    time.Duration `env:"BEAVER_SLACK_TIMEOUT,default:10s"`
+	WebhookURL string        `env:"SLACK_WEBHOOK_URL"`
+	Channel    string        `env:"SLACK_CHANNEL"`
+	Username   string        `env:"SLACK_USERNAME,default:Beaver"`
+	IconEmoji  string        `env:"SLACK_ICON_EMOJI"`
+	IconURL    string        `env:"SLACK_ICON_URL"`
+	Timeout    time.Duration `env:"SLACK_TIMEOUT,default:10s"`
 }
 
 // GetConfig returns config loaded from environment

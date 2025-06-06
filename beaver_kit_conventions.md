@@ -101,14 +101,51 @@ func ServiceName() *Service {
 
 ## Environment Variable Convention
 
-All environment variables must use the `BEAVER_` prefix:
+All environment variables use the `BEAVER_` prefix by default, but this is configurable:
 
 ```go
 type Config struct {
-    // Pattern: BEAVER_<PACKAGE>_<FIELD>
-    Driver   string `env:"BEAVER_DB_DRIVER,default:sqlite"`
-    Host     string `env:"BEAVER_DB_HOST,default:localhost"`
-    Port     string `env:"BEAVER_DB_PORT,default:5432"`
+    // No prefix in struct tags (prefix applied by LoadOptions)
+    Driver   string `env:"DB_DRIVER,default:sqlite"`
+    Host     string `env:"DB_HOST,default:localhost"`
+    Port     string `env:"DB_PORT,default:5432"`
+}
+```
+
+### Configurable Prefix Pattern
+
+Each package must support configurable prefixes via a Builder pattern:
+
+```go
+// Builder pattern for custom prefixes
+type Builder struct {
+    prefix string
+}
+
+func WithPrefix(prefix string) *Builder {
+    return &Builder{prefix: prefix}
+}
+
+func (b *Builder) Init() error {
+    cfg := &Config{}
+    if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+        return err
+    }
+    return Init(*cfg)
+}
+```
+
+### GetConfig Updates
+
+The `GetConfig()` function must accept LoadOptions:
+
+```go
+func GetConfig(opts ...config.LoadOptions) (*Config, error) {
+    cfg := &Config{}
+    if err := config.Load(cfg, opts...); err != nil {
+        return nil, err
+    }
+    return cfg, nil
 }
 ```
 
@@ -543,29 +580,103 @@ This preserves the zero-config philosophy while supporting advanced use cases.
 
 ## Best Practices
 
-1. **Always use BEAVER_ prefix** for environment variables
+1. **Remove prefixes from struct tags** - let the config package apply prefixes
 2. **Provide sensible defaults** in struct tags
-3. **Validate configuration** in `New()` with descriptive errors
-4. **Document all config fields** with clear comments
-5. **Use fmt.Errorf with %w** for error wrapping
-6. **Keep global state minimal** - only the instance, once, and error
-7. **Make zero-config work** - `Init()` with no args should succeed
-8. **Test with Reset()** to ensure clean state between tests
-9. **Keep context optional** - add `WithContext` variants only when necessary
+3. **Support configurable prefixes** via Builder pattern and LoadOptions
+4. **Validate configuration** in `New()` with descriptive errors
+5. **Document all config fields** with clear comments
+6. **Use fmt.Errorf with %w** for error wrapping
+7. **Keep global state minimal** - only the instance, once, and error
+8. **Make zero-config work** - `Init()` with no args should succeed
+9. **Test with Reset()** to ensure clean state between tests
+10. **Keep context optional** - add `WithContext` variants only when necessary
 
 ## Migration Guide
 
-For existing packages to adopt this pattern:
+### For New Packages
 
-1. Add Config struct with `env` tags
-2. Implement `GetConfig()` using `config.Load()`
+To adopt the configurable prefix pattern:
+
+1. Add Config struct with `env` tags (no prefix in tags)
+2. Implement `GetConfig(opts ...config.LoadOptions)` using `config.Load()`
 3. Rename constructors to `New()`
 4. Add `Init()` with `sync.Once`
-5. Add package-specific accessor (e.g., `DB()`, `Service()`)
-6. Add `Reset()` for testing
-7. Add `Shutdown()` if managing resources
-8. Update all env vars to use `BEAVER_` prefix
+5. Add `Builder` type with `WithPrefix()` method
+6. Add package-specific accessor (e.g., `DB()`, `Service()`)
+7. Add `Reset()` for testing
+8. Add `Shutdown()` if managing resources
 9. Update documentation and examples
+
+### For Existing Packages (Migration to Configurable Prefixes)
+
+To migrate existing packages:
+
+1. **Remove prefixes from struct tags:**
+   ```go
+   // Before
+   type Config struct {
+       Driver string `env:"BEAVER_DB_DRIVER,default:sqlite"`
+   }
+   
+   // After
+   type Config struct {
+       Driver string `env:"DB_DRIVER,default:sqlite"`
+   }
+   ```
+
+2. **Update GetConfig to accept LoadOptions:**
+   ```go
+   // Before
+   func GetConfig() (*Config, error) {
+       cfg := &Config{}
+       if err := config.Load(cfg); err != nil {
+           return nil, err
+       }
+       return cfg, nil
+   }
+   
+   // After
+   func GetConfig(opts ...config.LoadOptions) (*Config, error) {
+       cfg := &Config{}
+       if err := config.Load(cfg, opts...); err != nil {
+           return nil, err
+       }
+       return cfg, nil
+   }
+   ```
+
+3. **Add Builder pattern:**
+   ```go
+   type Builder struct {
+       prefix string
+   }
+   
+   func WithPrefix(prefix string) *Builder {
+       return &Builder{prefix: prefix}
+   }
+   
+   func (b *Builder) Init() error {
+       cfg := &Config{}
+       if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+           return err
+       }
+       return Init(*cfg)
+   }
+   ```
+
+4. **Update default GetConfig call to use BEAVER_ prefix:**
+   ```go
+   // In Init() function
+   cfg, defaultErr = GetConfig(config.LoadOptions{Prefix: "BEAVER_"})
+   ```
+
+5. **Update tests to use empty prefix:**
+   ```go
+   // In test files
+   cfg, err := packagename.GetConfig(config.LoadOptions{Prefix: ""})
+   ```
+
+This migration maintains backward compatibility while enabling the new configurable prefix functionality.
 
 ## Non-Service Modules
 
