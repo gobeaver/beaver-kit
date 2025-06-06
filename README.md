@@ -2,6 +2,21 @@
 
 A comprehensive, modular Go framework providing production-ready components for modern applications. Beaver Kit offers a collection of well-designed packages that follow consistent patterns, making it easy to build secure, scalable, and maintainable Go applications.
 
+┌─────────────────────────────────────────────────┐
+│                 BEAVER CLI                      │
+│  Code generation, scaffolding, migrations, etc. │
+└─────────────────────┬───────────────────────────┘
+                      │ generates/manages
+┌─────────────────────▼───────────────────────────┐
+│             BEAVER FRAMEWORK                    │
+│  Opinionated structure, conventions, patterns   │
+└─────────────────────┬───────────────────────────┘
+                      │ built entirely on
+┌─────────────────────▼───────────────────────────┐
+│               BEAVER KIT                        │
+│  Modular, driver-agnostic, flexible components  │
+└─────────────────────────────────────────────────┘
+
 ## 🌟 Features
 
 - **🔧 Modular Design**: Use only what you need - each package is independent
