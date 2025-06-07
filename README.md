@@ -22,6 +22,9 @@ A comprehensive, modular Go framework providing production-ready components for 
 - **🔧 Modular Design**: Use only what you need - each package is independent
 - **🌍 Environment-First Configuration**: All packages support environment variables with the `BEAVER_` prefix
 - **🎯 Configurable Prefixes**: Create multiple instances with custom environment variable prefixes
+- **🏗️ Builder Pattern**: Use `WithPrefix()` for multi-tenant and custom configurations
+- **🔄 Multi-Instance Support**: Run multiple instances with different configurations simultaneously
+- **⚡ CLI Code Generation**: Optional Beaver CLI with API mode and template system
 - **🔒 Secure by Default**: Built-in security features across all components
 - **📦 Minimal Dependencies**: Lightweight core with optional integrations
 - **🧪 Testing-Friendly**: Built-in support for testing with Reset() functions
@@ -93,9 +96,9 @@ func main() {
 }
 ```
 
-### Using Custom Prefixes
+### Multi-Instance Architecture
 
-Build multiple instances with different configurations:
+Build multiple instances with different configurations for advanced use cases:
 
 ```go
 // Default instance with BEAVER_ prefix
@@ -110,17 +113,142 @@ if err := cache.WithPrefix("").Init(); err != nil {
 }
 // Uses: AWS_REGION, AWS_ACCESS_KEY_ID, etc.
 
-// Custom prefix for multi-tenant apps
-if err := database.WithPrefix("TENANT1_").Init(); err != nil {
+// Multi-tenant database connections
+primaryDB, err := database.WithPrefix("PRIMARY_").New()
+if err != nil {
     log.Fatal(err)
 }
-// Uses: TENANT1_DB_HOST, TENANT1_DB_DATABASE, etc.
 
-if err := database.WithPrefix("TENANT2_").Init(); err != nil {
+replicaDB, err := database.WithPrefix("REPLICA_").New() 
+if err != nil {
     log.Fatal(err)
 }
-// Uses: TENANT2_DB_HOST, TENANT2_DB_DATABASE, etc.
+
+// Separate cache instances per service
+userCache, err := cache.WithPrefix("USER_").New()
+sessionCache, err := cache.WithPrefix("SESSION_").New()
+
+// Environment configuration:
+// PRIMARY_DB_HOST=primary.db.example.com
+// REPLICA_DB_HOST=replica.db.example.com
+// USER_CACHE_DRIVER=redis
+// SESSION_CACHE_DRIVER=memory
 ```
+
+### Custom Prefix Examples
+
+```bash
+# Multi-tenant SaaS application
+TENANT1_DB_HOST=tenant1.db.example.com
+TENANT1_CACHE_DRIVER=redis
+TENANT1_SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T1/...
+
+TENANT2_DB_HOST=tenant2.db.example.com  
+TENANT2_CACHE_DRIVER=memory
+TENANT2_SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T2/...
+
+# Microservices with service-specific configs
+AUTH_DB_HOST=auth.db.example.com
+USER_DB_HOST=users.db.example.com
+BILLING_DB_HOST=billing.db.example.com
+
+# Environment-specific instances
+DEV_DB_HOST=dev.db.example.com
+STAGING_DB_HOST=staging.db.example.com
+PROD_DB_HOST=prod.db.example.com
+```
+
+## ⚡ Beaver CLI (Optional)
+
+The Beaver CLI provides optional code generation and scaffolding with two flexible modes:
+
+### CLI Installation
+
+```bash
+go install github.com/gobeaver/beaver-kit/cmd/beaver@latest
+```
+
+### API Mode (Recommended)
+
+Pure programmatic generation without templates - type-safe and flexible:
+
+```bash
+# Initialize new project
+beaver init my-api
+
+# Edit beaver.yml configuration
+# Then generate code
+beaver generate
+```
+
+**beaver.yml example:**
+```yaml
+version: "1.0"
+mode: "api"
+
+project:
+  name: "my-api"
+  module: "github.com/user/my-api"
+
+environment:
+  prefix: "MYAPI_"
+
+api:
+  generators:
+    - name: "database"
+      config:
+        driver: "postgres"
+        migrations: true
+    - name: "cache"
+      config:
+        driver: "redis"
+        namespace: "myapi"
+    - name: "auth"
+      config:
+        provider: "jwt"
+        middleware: true
+
+packages:
+  database:
+    prefix: "DB_"
+  cache:
+    prefix: "CACHE_"
+```
+
+### Template Mode (Optional)
+
+Template-based generation for visual project structure:
+
+```yaml
+version: "1.0"
+mode: "template"
+
+project:
+  name: "my-service"
+  module: "github.com/user/my-service"
+
+templates:
+  preset: "microservice"
+  variables:
+    service_name: "user-service"
+    database_driver: "postgres"
+    docker: true
+```
+
+### CLI Benefits
+
+**API Mode:**
+- Type-safe configuration validation
+- Programmatic control over generation
+- No template syntax to learn
+- Better error handling and debugging
+- Fast execution
+
+**Template Mode:**
+- Visual project structure
+- Community template sharing
+- No Go knowledge required for templates
+- Rapid prototyping from existing patterns
 
 ## 📚 Package Documentation
 

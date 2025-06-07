@@ -9,9 +9,10 @@ A flexible, SQL-first database package for Go applications with optional GORM su
 - **Optional GORM Support** - Enable ORM functionality when needed
 - **Multi-Database Support** - PostgreSQL, MySQL, SQLite, and Turso/LibSQL
 - **Environment Configuration** - Easy setup via environment variables
+- **Fluent Interface** - Chain configuration methods for clean API
 - **Connection Pooling** - Built-in connection pool management
-- **Health Checks** - Monitor database connectivity
-- **Transaction Helpers** - Simplified transaction handling
+- **Custom Prefixes** - Configurable environment variable prefixes
+- **Unified Database Wrapper** - Access both SQL and GORM through single interface
 
 ## Installation
 
@@ -23,57 +24,71 @@ All database drivers are pure Go implementations, ensuring easy cross-compilatio
 
 ## Quick Start
 
-### Basic Usage (SQL)
+### Fluent Interface API
+
+The package provides a clean fluent interface for configuration and initialization:
 
 ```go
 package main
 
 import (
-    "context"
     "log"
-    
     "github.com/gobeaver/beaver-kit/database"
 )
 
 func main() {
-    // Initialize with environment variables
-    if err := database.Init(); err != nil {
+    // Global initialization with fluent interface
+    if err := database.WithGORM().Init(); err != nil {
         log.Fatal(err)
     }
-    defer database.Shutdown(context.Background())
     
-    // Get the global DB instance
-    db := database.DB()
+    // Custom prefix + GORM
+    if err := database.WithPrefix("APP_").WithGORM().Init(); err != nil {
+        log.Fatal(err)
+    }
     
-    // Execute queries
-    rows, err := db.Query("SELECT * FROM users WHERE active = ?", true)
+    // Create instance connections
+    db, err := database.WithGORM().Connect()
+    if err != nil {
+        log.Fatal(err)
+    }
+    defer db.Close()
+    
+    // Access SQL database
+    sqlDB := db.SQL()
+    rows, err := sqlDB.Query("SELECT * FROM users")
     if err != nil {
         log.Fatal(err)
     }
     defer rows.Close()
     
-    // Use convenience functions
-    result, err := database.Exec(context.Background(), 
-        "INSERT INTO users (name, email) VALUES (?, ?)", 
-        "John Doe", "john@example.com")
+    // Access GORM (if enabled)
+    gormDB, err := db.GORM()
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    var users []User
+    gormDB.Find(&users)
 }
 ```
 
-### With GORM Support
+### Traditional Global API
 
 ```go
-// Enable GORM during initialization
-gormDB, err := database.WithGORM()
-if err != nil {
+// Traditional initialization (still supported)
+if err := database.Init(); err != nil {
     log.Fatal(err)
 }
 
-// Or enable via environment variable
-// BEAVER_DB_ORM=gorm
+// Get global instances
+db := database.DB()
+gormDB, err := database.GORM()
 
-// Then use GORM
-var users []User
-gormDB.Find(&users)
+// Enable GORM explicitly
+if err := database.InitWithGORM(); err != nil {
+    log.Fatal(err)
+}
 ```
 
 ## Configuration
@@ -148,103 +163,84 @@ All drivers are pure Go implementations:
 
 ## API Reference
 
-### Initialization Functions
+### Fluent Interface
+
+The new fluent interface provides a clean, chainable API:
 
 ```go
-// Initialize with environment variables
-err := database.Init()
+// Top-level functions for fluent initialization
+database.New()                    // Create with defaults
+database.WithPrefix("APP_")       // Create with custom prefix  
+database.WithGORM()              // Create with GORM enabled
 
-// Initialize with custom config
-err := database.Init(config)
+// Fluent methods (chainable)
+db := database.New().WithGORM().WithPrefix("CUSTOM_")
 
-// Initialize with GORM support
-gormDB, err := database.WithGORM()
+// Initialization methods
+err := db.Init()                 // Global initialization
+instance, err := db.Connect()    // Create new instance
 
-// Must variants (panic on error)
-database.MustInit()
+// Database wrapper methods
+sqlDB := db.SQL()                // Get *sql.DB
+gormDB, err := db.GORM()         // Get *gorm.DB (with error)
+gormDB := db.MustGORM()          // Get *gorm.DB (panic on error)
+err := db.Close()                // Close connection
+err := db.Ping()                 // Health check
+stats := db.Stats()              // Connection stats
 ```
 
-### Getting Database Instances
+### Traditional API (Still Supported)
 
 ```go
-// Get global SQL database
-db := database.DB()
+// Global initialization
+err := database.Init()                    // Basic init
+err := database.InitWithGORM()           // With GORM
+database.MustInitWithGORM()              // Panic on error
 
-// Get global GORM instance (error if not enabled)
-gormDB, err := database.GORM()
+// Global instances  
+db := database.DB()                      // Global SQL DB
+gormDB, err := database.GORM()          // Global GORM
+gormDB := database.MustGORM()           // Global GORM (panic)
 
-// Must variant for GORM
-gormDB := database.MustGORM()
+// New instances
+sqlDB, err := database.NewSQL(config)    // New SQL connection
+gormDB, err := database.NewWithGORM()   // New GORM instance
+gormDB, err := database.NewGORM(cfg, db) // GORM from existing SQL
 ```
 
-### Creating New Instances
+### Custom Environment Variable Prefixes
+
+The package supports configurable environment variable prefixes for multi-tenant applications:
 
 ```go
-// Create new SQL connection
-db, err := database.New(config)
+// Default prefix (BEAVER_)
+database.New().Init()
 
-// Create from environment
-db, err := database.NewFromEnv()
+// Custom prefix (APP_DB_DRIVER, APP_DB_HOST, etc.)
+database.WithPrefix("APP_").Init()
 
-// Create GORM from existing SQL connection
-gormDB, err := database.NewGORM(config, sqlDB)
+// Multiple configurations
+prodDB := database.WithPrefix("PROD_").WithGORM()
+testDB := database.WithPrefix("TEST_").WithGORM()
 ```
 
-### Query Helpers
+### Error Handling
+
+The package provides specific error types:
 
 ```go
-// Execute query without results
-result, err := database.Exec(ctx, "DELETE FROM users WHERE id = ?", id)
+var (
+    ErrNotInitialized = errors.New("database not initialized")
+    ErrInvalidDriver  = errors.New("invalid database driver")
+    ErrInvalidConfig  = errors.New("invalid database configuration")
+    ErrGORMNotEnabled = errors.New("GORM not enabled")
+)
 
-// Query multiple rows
-rows, err := database.Query(ctx, "SELECT * FROM users")
-
-// Query single row
-row := database.QueryRow(ctx, "SELECT * FROM users WHERE id = ?", id)
-
-// Prepare statement
-stmt, err := database.Prepare(ctx, "SELECT * FROM users WHERE email = ?")
-```
-
-### Transaction Support
-
-```go
-err := database.Transaction(ctx, func(tx *sql.Tx) error {
-    // Execute queries within transaction
-    _, err := tx.Exec("INSERT INTO users ...")
-    if err != nil {
-        return err // Will rollback
-    }
-    
-    _, err = tx.Exec("UPDATE accounts ...")
-    return err // Will commit if nil, rollback if error
-})
-```
-
-### Health & Monitoring
-
-```go
-// Check database health
-err := database.Health(ctx)
-
-// Check health status
-if database.IsHealthy() {
-    // Database is reachable
+// Example usage
+gormDB, err := db.GORM()
+if err == database.ErrGORMNotEnabled {
+    // Handle GORM not being enabled
 }
-
-// Get connection statistics
-stats := database.Stats()
-fmt.Printf("Open connections: %d\n", stats.OpenConnections)
-```
-
-### Cleanup
-
-```go
-// Graceful shutdown
-err := database.Shutdown(ctx)
-
-// Reset global instance (for testing)
-database.Reset()
 ```
 
 ## Examples
@@ -287,73 +283,93 @@ BEAVER_DB_URL=libsql://my-db.turso.io
 BEAVER_DB_AUTH_TOKEN=your-auth-token
 ```
 
-### Using Transactions
+### Fluent Interface Examples
 
 ```go
-err := database.Transaction(ctx, func(tx *sql.Tx) error {
-    // Debit account
-    _, err := tx.Exec(`
-        UPDATE accounts 
-        SET balance = balance - ? 
-        WHERE id = ? AND balance >= ?`,
-        amount, fromID, amount)
-    if err != nil {
-        return err
-    }
-    
-    // Credit account
-    _, err = tx.Exec(`
-        UPDATE accounts 
-        SET balance = balance + ? 
-        WHERE id = ?`,
-        amount, toID)
-    
-    return err
-})
+// Global initialization patterns
+database.WithGORM().Init()                      // Global with GORM
+database.WithPrefix("APP_").WithGORM().Init()   // Custom prefix + GORM
+database.New().WithGORM().Init()                // Explicit new + GORM
+
+// Instance creation patterns
+db, err := database.WithGORM().Connect()        // Instance with GORM
+db, err := database.WithPrefix("APP_").Connect() // Custom prefix instance
+
+// Multi-environment setup
+prodDB, err := database.WithPrefix("PROD_").WithGORM().Connect()
+testDB, err := database.WithPrefix("TEST_").WithGORM().Connect()
+
+// Traditional + fluent mixing
+database.Init() // Initialize global
+db := database.New().WithGORM() // Create fluent instance
+instance, err := db.Connect()
 ```
 
-### Health Check Endpoint
+### Using the Database Wrapper
 
 ```go
-func healthHandler(w http.ResponseWriter, r *http.Request) {
-    ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-    defer cancel()
-    
-    if err := database.Health(ctx); err != nil {
-        w.WriteHeader(http.StatusServiceUnavailable)
-        json.NewEncoder(w).Encode(map[string]string{
-            "status": "unhealthy",
-            "error":  err.Error(),
-        })
-        return
-    }
-    
-    stats := database.Stats()
-    json.NewEncoder(w).Encode(map[string]interface{}{
-        "status": "healthy",
-        "stats":  stats,
-    })
+// Create connection with fluent interface
+db, err := database.WithGORM().Connect()
+if err != nil {
+    log.Fatal(err)
 }
+defer db.Close()
+
+// Access SQL database for custom queries
+sqlDB := db.SQL()
+rows, err := sqlDB.Query("SELECT * FROM users WHERE active = ?", true)
+if err != nil {
+    log.Fatal(err)
+}
+defer rows.Close()
+
+// Access GORM for ORM operations
+gormDB, err := db.GORM()
+if err != nil {
+    log.Fatal(err)
+}
+
+type User struct {
+    ID   uint
+    Name string
+}
+
+var users []User
+gormDB.Find(&users)
+
+// Health check
+if err := db.Ping(); err != nil {
+    log.Printf("Database unhealthy: %v", err)
+}
+
+// Get connection statistics
+stats := db.Stats()
+log.Printf("Open connections: %d", stats.OpenConnections)
 ```
 
 ## Testing
 
-For testing, you can use the Reset function to clear the global instance:
+For testing, create isolated database instances:
 
 ```go
 func TestMyFunction(t *testing.T) {
-    defer database.Reset()
-    
-    // Initialize with test configuration
-    err := database.Init(database.Config{
-        Driver:   "sqlite",
-        Database: ":memory:",
-    })
+    // Create test database instance (doesn't affect global state)
+    db, err := database.New().Connect()
     if err != nil {
-        t.Fatal(err)
+        // Fallback to in-memory SQLite for tests
+        cfg := database.Config{
+            Driver:   "sqlite",
+            Database: ":memory:",
+        }
+        sqlDB, err := database.NewSQL(cfg)
+        if err != nil {
+            t.Fatal(err)
+        }
+        db = &database.Database{} // Create wrapper if needed
     }
+    defer db.Close()
     
-    // Run tests...
+    // Run tests with isolated instance...
 }
 ```
 
@@ -367,27 +383,67 @@ While this package focuses on database connectivity, migrations should be handle
 
 ## Best Practices
 
-1. **Initialize Early** - Call `database.Init()` in your main function or init
-2. **Use Context** - Always pass context for cancellation and timeouts
-3. **Close Resources** - Always close rows and statements when done
-4. **Handle Errors** - Check all errors, especially in transactions
-5. **Monitor Health** - Use health checks in production
-6. **Graceful Shutdown** - Call `database.Shutdown()` before exiting
+1. **Use Fluent Interface** - Prefer `database.WithGORM().Init()` for clean configuration
+2. **Environment Variable Prefixes** - Use custom prefixes for multi-tenant applications
+3. **Instance vs Global** - Use `.Connect()` for isolated instances, `.Init()` for global state
+4. **Close Resources** - Always close Database instances and SQL rows/statements
+5. **Error Handling** - Check for specific errors like `ErrGORMNotEnabled`
+6. **Health Monitoring** - Use `db.Ping()` for health checks
+7. **Testing Isolation** - Create separate instances for tests, avoid global state
 
-## Error Handling
+## Migration Patterns
 
-The package defines several error types:
+### Using with GORM AutoMigrate
 
 ```go
-var (
-    ErrNotInitialized = errors.New("database not initialized")
-    ErrInvalidDriver  = errors.New("invalid database driver")
-    ErrInvalidConfig  = errors.New("invalid database configuration")
-    ErrGORMNotEnabled = errors.New("GORM not enabled")
-)
+// Initialize with GORM
+db, err := database.WithGORM().Connect()
+if err != nil {
+    log.Fatal(err)
+}
+
+// Get GORM instance for migrations
+gormDB, err := db.GORM()
+if err != nil {
+    log.Fatal(err)
+}
+
+// Auto-migrate your models
+type User struct {
+    ID   uint
+    Name string
+    Email string `gorm:"uniqueIndex"`
+}
+
+if err := gormDB.AutoMigrate(&User{}); err != nil {
+    log.Fatal(err)
+}
 ```
 
-Always check for these errors when initializing or using the database.
+### Integration with Migration Tools
+
+```go
+// Get raw SQL connection for migration tools
+db, err := database.New().Connect()
+if err != nil {
+    log.Fatal(err)
+}
+
+sqlDB := db.SQL()
+
+// Use with golang-migrate
+import "github.com/golang-migrate/migrate/v4"
+import "github.com/golang-migrate/migrate/v4/database/postgres"
+
+driver, err := postgres.WithInstance(sqlDB, &postgres.Config{})
+m, err := migrate.NewWithDatabaseInstance(
+    "file://migrations",
+    "postgres", driver)
+
+if err := m.Up(); err != nil {
+    log.Fatal(err)
+}
+```
 
 ## License
 

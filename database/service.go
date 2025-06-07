@@ -1,4 +1,4 @@
-// database/service.go - SQL-first implementation
+// Package database database/service.go - SQL-first implementation
 // This package uses pure Go database drivers to ensure CGO-free builds,
 // enabling easy cross-compilation and deployment across different platforms.
 package database
@@ -15,10 +15,10 @@ import (
 	"github.com/gobeaver/beaver-kit/config"
 
 	// Database drivers - pure Go implementations for CGO-free builds
-	_ "github.com/go-sql-driver/mysql"      // MySQL - already pure Go
-	_ "github.com/jackc/pgx/v5/stdlib"      // PostgreSQL - pure Go, performant
+	_ "github.com/go-sql-driver/mysql"                   // MySQL - already pure Go
+	_ "github.com/jackc/pgx/v5/stdlib"                   // PostgreSQL - pure Go, performant
 	_ "github.com/tursodatabase/libsql-client-go/libsql" // LibSQL/Turso - pure Go
-	_ "modernc.org/sqlite"                   // SQLite - pure Go alternative to go-sqlite3
+	_ "modernc.org/sqlite"                               // SQLite - pure Go alternative to go-sqlite3
 
 	// GORM (only loaded when needed)
 	"gorm.io/driver/mysql"
@@ -44,51 +44,143 @@ var (
 	ErrNotInitialized = errors.New("database not initialized")
 	ErrInvalidDriver  = errors.New("invalid database driver")
 	ErrInvalidConfig  = errors.New("invalid database configuration")
-	ErrGORMNotEnabled = errors.New("GORM not enabled - set BEAVER_DB_ORM=gorm or use WithGORM()")
+	ErrGORMNotEnabled = errors.New("GORM not enabled - set BEAVER_DB_ORM=gorm or use InitWithGORM()")
 )
 
-// Builder provides a way to create database instances with custom prefixes
-type Builder struct {
-	prefix string
+// Database wraps both sql.DB and gorm.DB providing unified access
+type Database struct {
+	sqlDB   *sql.DB
+	gormDB  *gorm.DB
+	prefix  string
+	useGORM bool
 }
 
-// WithPrefix creates a new Builder with the specified prefix
-func WithPrefix(prefix string) *Builder {
-	return &Builder{prefix: prefix}
+// New creates a new Database with default settings
+func New() *Database {
+	return &Database{prefix: "BEAVER_"}
 }
 
-// Init initializes the global database instance using the builder's prefix
-func (b *Builder) Init() error {
+// WithPrefix creates a new Database with the specified prefix
+func WithPrefix(prefix string) *Database {
+	return &Database{prefix: prefix}
+}
+
+// WithGORM creates a new Database with GORM enabled
+func WithGORM() *Database {
+	return &Database{prefix: "BEAVER_", useGORM: true}
+}
+
+// WithPrefix sets a custom environment variable prefix and returns the database for chaining
+func (db *Database) WithPrefix(prefix string) *Database {
+	db.prefix = prefix
+	return db
+}
+
+// WithGORM enables GORM support and returns the database for chaining
+func (db *Database) WithGORM() *Database {
+	db.useGORM = true
+	return db
+}
+
+// Init initializes the global database instance with the configured settings
+func (db *Database) Init() error {
 	cfg := &Config{}
-	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+	if err := config.Load(cfg, config.LoadOptions{Prefix: db.prefix}); err != nil {
 		return err
+	}
+	if db.useGORM {
+		cfg.UseORM = "gorm"
 	}
 	return Init(*cfg)
 }
 
-// New creates a new database connection using the builder's prefix
-func (b *Builder) New() (*sql.DB, error) {
+// Connect creates a new database connection with the configured settings
+func (db *Database) Connect() (*Database, error) {
 	cfg := &Config{}
-	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+	if err := config.Load(cfg, config.LoadOptions{Prefix: db.prefix}); err != nil {
 		return nil, err
 	}
-	return New(*cfg)
-}
 
-// NewGORM creates a new GORM instance using the builder's prefix
-func (b *Builder) NewGORM() (*gorm.DB, error) {
-	cfg := &Config{}
-	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
-		return nil, err
+	if db.useGORM {
+		cfg.UseORM = "gorm"
+		sqlDB, err := NewSQL(*cfg)
+		if err != nil {
+			return nil, err
+		}
+		gormDB, err := NewGORM(*cfg, sqlDB)
+		if err != nil {
+			return nil, err
+		}
+		return &Database{
+			gormDB:  gormDB,
+			prefix:  db.prefix,
+			useGORM: db.useGORM,
+		}, nil
 	}
-	cfg.UseORM = "gorm"
-	
-	sqlDB, err := New(*cfg)
+
+	sqlDB, err := NewSQL(*cfg)
 	if err != nil {
 		return nil, err
 	}
-	
-	return NewGORM(*cfg, sqlDB)
+	return &Database{
+		sqlDB:   sqlDB,
+		prefix:  db.prefix,
+		useGORM: db.useGORM,
+	}, nil
+}
+
+// SQL returns the underlying sql.DB instance
+func (db *Database) SQL() *sql.DB {
+	if db.gormDB != nil {
+		sqlDB, _ := db.gormDB.DB()
+		return sqlDB
+	}
+	return db.sqlDB
+}
+
+// GORM returns the GORM instance or error if not enabled
+func (db *Database) GORM() (*gorm.DB, error) {
+	if db.gormDB == nil {
+		return nil, ErrGORMNotEnabled
+	}
+	return db.gormDB, nil
+}
+
+// MustGORM returns the GORM instance or panics if not enabled
+func (db *Database) MustGORM() *gorm.DB {
+	gormDB, err := db.GORM()
+	if err != nil {
+		panic(fmt.Sprintf("failed to get GORM instance: %v", err))
+	}
+	return gormDB
+}
+
+// Close closes the database connection
+func (db *Database) Close() error {
+	if db.gormDB != nil {
+		if sqlDB, err := db.gormDB.DB(); err == nil {
+			return sqlDB.Close()
+		}
+	}
+	if db.sqlDB != nil {
+		return db.sqlDB.Close()
+	}
+	return nil
+}
+
+// Ping verifies the database connection is alive
+func (db *Database) Ping() error {
+	return db.SQL().Ping()
+}
+
+// PingContext verifies the database connection is alive with context
+func (db *Database) PingContext(ctx context.Context) error {
+	return db.SQL().PingContext(ctx)
+}
+
+// Stats returns connection pool statistics
+func (db *Database) Stats() sql.DBStats {
+	return db.SQL().Stats()
 }
 
 // Init initializes the global SQL database instance with optional config
@@ -105,7 +197,7 @@ func Init(configs ...Config) error {
 		}
 
 		defaultConfig = cfg
-		defaultDB, defaultErr = New(*cfg)
+		defaultDB, defaultErr = NewSQL(*cfg)
 
 		// Check if GORM is requested via config or environment
 		if defaultErr == nil && shouldInitGORM(cfg) {
@@ -121,8 +213,8 @@ func Init(configs ...Config) error {
 	return defaultErr
 }
 
-// New creates a new SQL database connection with given config
-func New(cfg Config) (*sql.DB, error) {
+// NewSQL creates a new SQL database connection with given config
+func NewSQL(cfg Config) (*sql.DB, error) {
 	// Validation
 	if err := validateConfig(cfg); err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidConfig, err)
@@ -285,8 +377,57 @@ func MustGORM() *gorm.DB {
 	return gormDB
 }
 
-// WithGORM initializes the database with GORM support enabled
-func WithGORM(configs ...Config) (*gorm.DB, error) {
+// InitWithGORM initializes the global database instance with GORM support enabled
+func InitWithGORM(configs ...Config) error {
+	var cfg Config
+	if len(configs) > 0 {
+		cfg = configs[0]
+	} else {
+		c, err := GetConfig()
+		if err != nil {
+			return err
+		}
+		cfg = *c
+	}
+
+	cfg.UseORM = "gorm"
+	return Init(cfg)
+}
+
+// NewWithGORM creates a new GORM instance without affecting global state
+func NewWithGORM(configs ...Config) (*gorm.DB, error) {
+	var cfg Config
+	if len(configs) > 0 {
+		cfg = configs[0]
+	} else {
+		c, err := GetConfig()
+		if err != nil {
+			return nil, err
+		}
+		cfg = *c
+	}
+
+	cfg.UseORM = "gorm"
+
+	sqlDB, err := NewSQL(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewGORM(cfg, sqlDB)
+}
+
+// MustInitWithGORM initializes with GORM and panics on error
+func MustInitWithGORM(configs ...Config) {
+	if err := InitWithGORM(configs...); err != nil {
+		panic(fmt.Sprintf("failed to initialize database with GORM: %v", err))
+	}
+}
+
+// DEPRECATED: WithGORMDeprecated is deprecated. Use InitWithGORM for global initialization
+// or NewWithGORM for creating new instances.
+// This function will be removed in v2.0.0
+func WithGORMDeprecated(configs ...Config) (*gorm.DB, error) {
 	var cfg Config
 	if len(configs) > 0 {
 		cfg = configs[0]
@@ -305,89 +446,6 @@ func WithGORM(configs ...Config) (*gorm.DB, error) {
 	}
 
 	return GORM()
-}
-
-// Health checks database connectivity
-func Health(ctx context.Context) error {
-	if defaultDB == nil {
-		return ErrNotInitialized
-	}
-
-	return defaultDB.PingContext(ctx)
-}
-
-// Stats returns database statistics
-func Stats() sql.DBStats {
-	if defaultDB == nil {
-		return sql.DBStats{}
-	}
-	return defaultDB.Stats()
-}
-
-// IsHealthy returns true if the database is reachable
-func IsHealthy() bool {
-	return Health(context.Background()) == nil
-}
-
-// Reset clears the global instances (for testing)
-func Reset() {
-	if defaultDB != nil {
-		defaultDB.Close()
-	}
-	defaultDB = nil
-	defaultGORM = nil
-	defaultConfig = nil
-	defaultOnce = sync.Once{}
-	gormOnce = sync.Once{}
-	defaultErr = nil
-	gormErr = nil
-}
-
-// Shutdown gracefully closes database connections
-func Shutdown(ctx context.Context) error {
-	if defaultDB == nil {
-		return nil
-	}
-
-	// Close with context timeout
-	done := make(chan struct{})
-	go func() {
-		defaultDB.Close()
-		close(done)
-	}()
-
-	select {
-	case <-done:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-// Transaction executes a function within a SQL transaction
-func Transaction(ctx context.Context, fn func(*sql.Tx) error) error {
-	if defaultDB == nil {
-		return ErrNotInitialized
-	}
-
-	tx, err := defaultDB.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		if p := recover(); p != nil {
-			tx.Rollback()
-			panic(p) // re-throw panic after rollback
-		}
-	}()
-
-	if err := fn(tx); err != nil {
-		tx.Rollback()
-		return err
-	}
-
-	return tx.Commit()
 }
 
 // Helper functions
@@ -481,69 +539,4 @@ func buildPostgresDSN(cfg Config) string {
 	}
 
 	return strings.Join(parts, " ")
-}
-
-// Convenience functions for common operations
-
-// Exec executes a query without returning any rows
-func Exec(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
-	if defaultDB == nil {
-		return nil, ErrNotInitialized
-	}
-	return defaultDB.ExecContext(ctx, query, args...)
-}
-
-// Query executes a query that returns rows
-func Query(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
-	if defaultDB == nil {
-		return nil, ErrNotInitialized
-	}
-	return defaultDB.QueryContext(ctx, query, args...)
-}
-
-// QueryRow executes a query that returns at most one row
-func QueryRow(ctx context.Context, query string, args ...interface{}) *sql.Row {
-	if defaultDB == nil {
-		return nil
-	}
-	return defaultDB.QueryRowContext(ctx, query, args...)
-}
-
-// Prepare creates a prepared statement
-func Prepare(ctx context.Context, query string) (*sql.Stmt, error) {
-	if defaultDB == nil {
-		return nil, ErrNotInitialized
-	}
-	return defaultDB.PrepareContext(ctx, query)
-}
-
-// MustInit initializes the database and panics on error
-func MustInit(configs ...Config) {
-	if err := Init(configs...); err != nil {
-		panic(fmt.Sprintf("failed to initialize database: %v", err))
-	}
-}
-
-// Default returns the global SQL instance with error handling
-func Default() (*sql.DB, error) {
-	if defaultDB == nil {
-		if err := Init(); err != nil {
-			return nil, err
-		}
-	}
-	return defaultDB, nil
-}
-
-// NewFromEnv creates SQL instance from environment variables
-func NewFromEnv() (*sql.DB, error) {
-	cfg, err := GetConfig()
-	if err != nil {
-		return nil, err
-	}
-	return New(*cfg)
-}
-
-// InitFromEnv is an alias for Init with no arguments
-func InitFromEnv() error {
-	return Init()
 }
