@@ -4,7 +4,7 @@ A flexible and secure OAuth 2.0 client implementation for Go applications, suppo
 
 ## Features
 
-- 🔐 **Multiple OAuth Providers** - GitHub, Google (coming soon), Apple (coming soon), Twitter (coming soon)
+- 🔐 **Multiple OAuth Providers** - GitHub, Google, Apple, Twitter (X)
 - 🛡️ **PKCE Support** - Enhanced security with Proof Key for Code Exchange
 - ⚙️ **Environment Configuration** - Easy setup via environment variables
 - 🔄 **Token Management** - Automatic token handling with refresh support
@@ -193,6 +193,60 @@ token, err := provider.Exchange(ctx, code, pkce)
 ```
 
 ## Provider-Specific Features
+
+### Google Provider
+
+```go
+provider := oauth.NewGoogle(oauth.ProviderConfig{
+    ClientID:     "google_client_id",
+    ClientSecret: "google_client_secret",
+    RedirectURL:  "http://localhost:8080/callback/google",
+    Scopes:       []string{"openid", "profile", "email"},
+})
+
+// Google-specific features:
+// - OpenID Connect support with ID tokens
+// - Refresh token support (offline access)
+// - PKCE support for enhanced security
+// - Perfect for PWA and Flutter apps
+```
+
+### Apple Provider
+
+```go
+provider, err := oauth.NewApple(oauth.ProviderConfig{
+    ClientID:     "com.yourapp.serviceid",
+    RedirectURL:  "https://yourapp.com/callback/apple",
+    TeamID:       "YOUR_TEAM_ID",
+    KeyID:        "YOUR_KEY_ID", 
+    PrivateKey:   "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----",
+    Scopes:       []string{"name", "email"},
+})
+
+// Apple-specific features:
+// - Requires Apple Developer Program enrollment
+// - Uses JWT-based client authentication
+// - ID token contains user information (no separate userinfo endpoint)
+// - PKCE support for enhanced security
+// - form_post response mode for better security
+```
+
+### Twitter (X) Provider
+
+```go
+provider := oauth.NewTwitter(oauth.ProviderConfig{
+    ClientID:     "twitter_client_id",
+    ClientSecret: "twitter_client_secret", // Optional for public clients
+    RedirectURL:  "https://yourapp.com/callback/twitter",
+    Scopes:       []string{"tweet.read", "users.read", "offline.access"},
+})
+
+// Twitter-specific features:
+// - OAuth 2.0 with PKCE (required for public clients)
+// - API v2 support with enhanced user fields
+// - No email in user profile (separate permission required)
+// - Rich user metadata (followers, tweets, etc.)
+```
 
 ### GitHub Provider
 
@@ -384,10 +438,501 @@ func TestOAuthFlow(t *testing.T) {
 | Provider | Status | Refresh Token | PKCE Support | Notes |
 |----------|--------|---------------|--------------|-------|
 | GitHub | ✅ Complete | ❌ | ✅ | Tokens don't expire |
-| Google | 🚧 Coming Soon | ✅ | ✅ | OpenID Connect |
-| Apple | 📋 Planned | ✅ | ✅ | Requires additional config |
-| Twitter | 📋 Planned | ✅ | ❌ | OAuth 2.0 support |
+| Google | ✅ Complete | ✅ | ✅ | OpenID Connect, perfect for PWA/Flutter |
+| Apple | ✅ Complete | ✅ | ✅ | JWT client auth, ID tokens, iOS apps |
+| Twitter | ✅ Complete | ✅ | ✅ | OAuth 2.0 API v2, social integration |
 | Custom | 📋 Planned | Varies | Varies | Generic OAuth 2.0 |
+
+## PWA and Flutter App Integration
+
+The OAuth package is specifically designed to work well with Progressive Web Apps (PWA) and Flutter applications that need secure OAuth flows:
+
+### Google OAuth for PWA/Flutter
+
+```go
+// Perfect configuration for PWA/Flutter apps
+provider := oauth.NewGoogle(oauth.ProviderConfig{
+    ClientID:     "your_app.googleusercontent.com",
+    ClientSecret: "your_client_secret", // For server-side flow
+    RedirectURL:  "https://yourapp.com/auth/callback",
+    Scopes:       []string{"openid", "profile", "email"},
+})
+
+// Always use PKCE for enhanced security in public clients
+pkce, err := oauth.GeneratePKCEChallenge("S256")
+if err != nil {
+    log.Fatal(err)
+}
+
+// Generate authorization URL with PKCE
+authURL := provider.GetAuthURL(state, pkce)
+// Redirect user or open in browser
+
+// After callback, exchange with PKCE verifier
+token, err := provider.Exchange(ctx, authCode, pkce)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Parse ID token for additional user claims
+if token.IDToken != "" {
+    claims, err := provider.ParseIDToken(token.IDToken)
+    if err == nil {
+        // Access additional user information from ID token
+        fmt.Printf("User email from ID token: %v", claims["email"])
+    }
+}
+```
+
+### Key Benefits for PWA/Flutter:
+
+1. **PKCE Security** - Essential for public clients (PWA/mobile apps)
+2. **Refresh Tokens** - Google provides refresh tokens for offline access
+3. **ID Tokens** - OpenID Connect support for additional user claims
+4. **Cross-Platform** - Same backend code works for web and mobile
+5. **Secure Flow** - Server-side token exchange prevents token exposure
+
+### Deployment Considerations:
+
+- **PWA**: Use server-side callback URL, handle PKCE on client
+- **Flutter**: Integrate with deep links for callback handling  
+- **Security**: Always validate state parameter and use HTTPS
+- **Tokens**: Store refresh tokens securely, never in client storage
+
+## Integration with Authentication Systems
+
+The OAuth package is designed to integrate seamlessly with authentication systems and auth flows:
+
+### Complete Auth Flow Implementation
+
+```go
+package auth
+
+import (
+    "context"
+    "net/http"
+    "time"
+    
+    "github.com/gobeaver/beaver-kit/oauth"
+    "github.com/gobeaver/beaver-kit/krypto"
+)
+
+type AuthService struct {
+    oauth   *oauth.Service
+    users   UserRepository
+    tokens  TokenRepository
+}
+
+func NewAuthService() *AuthService {
+    // Initialize OAuth service
+    oauthService := oauth.New()
+    config := oauth.Config{
+        Providers: map[string]oauth.ProviderConfig{
+            "google": {
+                ClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
+                ClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
+                RedirectURL:  "https://yourapp.com/auth/google/callback",
+                Scopes:       []string{"openid", "profile", "email"},
+            },
+            "github": {
+                ClientID:     os.Getenv("GITHUB_CLIENT_ID"),
+                ClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
+                RedirectURL:  "https://yourapp.com/auth/github/callback",
+                Scopes:       []string{"read:user", "user:email"},
+            },
+        },
+    }
+    oauthService.Init(config)
+    
+    return &AuthService{
+        oauth: oauthService,
+        users: NewUserRepository(),
+        tokens: NewTokenRepository(),
+    }
+}
+
+// StartOAuthFlow initiates OAuth authentication
+func (a *AuthService) StartOAuthFlow(provider string, w http.ResponseWriter, r *http.Request) error {
+    // Generate auth URL with PKCE
+    authURL, state, err := a.oauth.GenerateAuthURL(provider, true)
+    if err != nil {
+        return err
+    }
+    
+    // Store state and PKCE in session for callback verification
+    session := &AuthSession{
+        State:     state,
+        Provider:  provider,
+        ExpiresAt: time.Now().Add(10 * time.Minute),
+    }
+    
+    // Store session (in production, use Redis/database)
+    a.storeSession(r, session)
+    
+    // Redirect to OAuth provider
+    http.Redirect(w, r, authURL, http.StatusFound)
+    return nil
+}
+
+// HandleOAuthCallback processes OAuth callback and completes authentication
+func (a *AuthService) HandleOAuthCallback(provider string, w http.ResponseWriter, r *http.Request) (*User, error) {
+    // Retrieve and validate session
+    session, err := a.getSession(r)
+    if err != nil {
+        return nil, fmt.Errorf("invalid session: %w", err)
+    }
+    
+    if session.Provider != provider {
+        return nil, fmt.Errorf("provider mismatch")
+    }
+    
+    // Handle OAuth callback
+    resp, err := a.oauth.HandleCallback(r, provider)
+    if err != nil {
+        return nil, fmt.Errorf("oauth callback failed: %w", err)
+    }
+    
+    // Verify state (CSRF protection)
+    if resp.State != session.State {
+        return nil, fmt.Errorf("state mismatch - possible CSRF attack")
+    }
+    
+    // Get user information from OAuth provider
+    userInfo, err := a.oauth.GetUserInfo(r.Context(), provider, resp.Token.AccessToken)
+    if err != nil {
+        return nil, fmt.Errorf("failed to get user info: %w", err)
+    }
+    
+    // Find or create user in your system
+    user, err := a.findOrCreateUser(userInfo, provider)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create user: %w", err)
+    }
+    
+    // Cache OAuth token for API calls
+    err = a.oauth.CacheToken(user.ID, provider, resp.Token)
+    if err != nil {
+        // Log error but don't fail auth
+        log.Printf("Failed to cache OAuth token: %v", err)
+    }
+    
+    // Generate your application's session token
+    sessionToken, err := a.generateSessionToken(user)
+    if err != nil {
+        return nil, fmt.Errorf("failed to generate session: %w", err)
+    }
+    
+    // Set session cookie
+    http.SetCookie(w, &http.Cookie{
+        Name:     "session",
+        Value:    sessionToken,
+        Path:     "/",
+        HttpOnly: true,
+        Secure:   true,
+        SameSite: http.SameSiteLaxMode,
+        Expires:  time.Now().Add(30 * 24 * time.Hour), // 30 days
+    })
+    
+    return user, nil
+}
+
+// findOrCreateUser handles user registration/login
+func (a *AuthService) findOrCreateUser(userInfo *oauth.UserInfo, provider string) (*User, error) {
+    // Check if user exists by OAuth provider ID
+    user, err := a.users.FindByOAuthID(provider, userInfo.ID)
+    if err == nil {
+        // Existing user - update their info
+        user.Email = userInfo.Email
+        user.Name = userInfo.Name
+        user.Picture = userInfo.Picture
+        user.LastLoginAt = time.Now()
+        return a.users.Update(user)
+    }
+    
+    // Check if user exists by email
+    if userInfo.Email != "" {
+        user, err = a.users.FindByEmail(userInfo.Email)
+        if err == nil {
+            // Link OAuth account to existing user
+            oauthAccount := &OAuthAccount{
+                UserID:     user.ID,
+                Provider:   provider,
+                ProviderID: userInfo.ID,
+                Email:      userInfo.Email,
+            }
+            a.users.AddOAuthAccount(oauthAccount)
+            return user, nil
+        }
+    }
+    
+    // Create new user
+    user = &User{
+        Email:       userInfo.Email,
+        Name:        userInfo.Name,
+        Picture:     userInfo.Picture,
+        EmailVerified: userInfo.EmailVerified,
+        CreatedAt:   time.Now(),
+        LastLoginAt: time.Now(),
+    }
+    
+    user, err = a.users.Create(user)
+    if err != nil {
+        return nil, err
+    }
+    
+    // Create OAuth account link
+    oauthAccount := &OAuthAccount{
+        UserID:     user.ID,
+        Provider:   provider,
+        ProviderID: userInfo.ID,
+        Email:      userInfo.Email,
+    }
+    
+    err = a.users.AddOAuthAccount(oauthAccount)
+    if err != nil {
+        return nil, err
+    }
+    
+    return user, nil
+}
+
+// generateSessionToken creates a secure session token
+func (a *AuthService) generateSessionToken(user *User) (string, error) {
+    claims := map[string]interface{}{
+        "user_id": user.ID,
+        "email":   user.Email,
+        "exp":     time.Now().Add(30 * 24 * time.Hour).Unix(),
+        "iat":     time.Now().Unix(),
+    }
+    
+    // Use krypto package to generate JWT
+    return krypto.GenerateJWT(claims)
+}
+
+// Middleware for protecting routes
+func (a *AuthService) RequireAuth(next http.HandlerFunc) http.HandlerFunc {
+    return func(w http.ResponseWriter, r *http.Request) {
+        // Get session token from cookie
+        cookie, err := r.Cookie("session")
+        if err != nil {
+            http.Error(w, "Unauthorized", http.StatusUnauthorized)
+            return
+        }
+        
+        // Validate session token
+        claims, err := krypto.ValidateJWT(cookie.Value)
+        if err != nil {
+            http.Error(w, "Invalid session", http.StatusUnauthorized)
+            return
+        }
+        
+        // Get user from claims
+        userID, ok := claims["user_id"].(string)
+        if !ok {
+            http.Error(w, "Invalid session", http.StatusUnauthorized)
+            return
+        }
+        
+        user, err := a.users.FindByID(userID)
+        if err != nil {
+            http.Error(w, "User not found", http.StatusUnauthorized)
+            return
+        }
+        
+        // Add user to request context
+        ctx := context.WithValue(r.Context(), "user", user)
+        next.ServeHTTP(w, r.WithContext(ctx))
+    }
+}
+
+// Helper types
+type User struct {
+    ID            string    `json:"id"`
+    Email         string    `json:"email"`
+    Name          string    `json:"name"`
+    Picture       string    `json:"picture"`
+    EmailVerified bool      `json:"email_verified"`
+    CreatedAt     time.Time `json:"created_at"`
+    LastLoginAt   time.Time `json:"last_login_at"`
+}
+
+type OAuthAccount struct {
+    UserID     string `json:"user_id"`
+    Provider   string `json:"provider"`
+    ProviderID string `json:"provider_id"`
+    Email      string `json:"email"`
+}
+
+type AuthSession struct {
+    State     string    `json:"state"`
+    Provider  string    `json:"provider"`
+    ExpiresAt time.Time `json:"expires_at"`
+}
+```
+
+### HTTP Routes Setup
+
+```go
+func SetupAuthRoutes(auth *AuthService) *http.ServeMux {
+    mux := http.NewServeMux()
+    
+    // OAuth initiation routes
+    mux.HandleFunc("/auth/google", func(w http.ResponseWriter, r *http.Request) {
+        auth.StartOAuthFlow("google", w, r)
+    })
+    
+    mux.HandleFunc("/auth/github", func(w http.ResponseWriter, r *http.Request) {
+        auth.StartOAuthFlow("github", w, r)
+    })
+    
+    mux.HandleFunc("/auth/apple", func(w http.ResponseWriter, r *http.Request) {
+        auth.StartOAuthFlow("apple", w, r)
+    })
+    
+    mux.HandleFunc("/auth/twitter", func(w http.ResponseWriter, r *http.Request) {
+        auth.StartOAuthFlow("twitter", w, r)
+    })
+    
+    // OAuth callback routes
+    mux.HandleFunc("/auth/google/callback", func(w http.ResponseWriter, r *http.Request) {
+        user, err := auth.HandleOAuthCallback("google", w, r)
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusBadRequest)
+            return
+        }
+        
+        // Redirect to app dashboard
+        http.Redirect(w, r, "/dashboard", http.StatusFound)
+    })
+    
+    mux.HandleFunc("/auth/github/callback", func(w http.ResponseWriter, r *http.Request) {
+        user, err := auth.HandleOAuthCallback("github", w, r)
+        if err != nil {
+            http.Error(w, err.Error(), http.StatusBadRequest)
+            return
+        }
+        
+        http.Redirect(w, r, "/dashboard", http.StatusFound)
+    })
+    
+    // Protected routes
+    mux.HandleFunc("/dashboard", auth.RequireAuth(func(w http.ResponseWriter, r *http.Request) {
+        user := r.Context().Value("user").(*User)
+        fmt.Fprintf(w, "Welcome %s!", user.Name)
+    }))
+    
+    mux.HandleFunc("/api/user", auth.RequireAuth(func(w http.ResponseWriter, r *http.Request) {
+        user := r.Context().Value("user").(*User)
+        json.NewEncoder(w).Encode(user)
+    }))
+    
+    return mux
+}
+```
+
+### Database Schema
+
+```sql
+-- Users table
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    picture VARCHAR(500),
+    email_verified BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT NOW(),
+    last_login_at TIMESTAMP DEFAULT NOW()
+);
+
+-- OAuth accounts table for linking multiple providers
+CREATE TABLE oauth_accounts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider VARCHAR(50) NOT NULL,
+    provider_id VARCHAR(255) NOT NULL,
+    email VARCHAR(255),
+    created_at TIMESTAMP DEFAULT NOW(),
+    UNIQUE(provider, provider_id)
+);
+
+-- Sessions table (optional - for server-side sessions)
+CREATE TABLE sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash VARCHAR(255) NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- Indexes
+CREATE INDEX idx_oauth_accounts_user_id ON oauth_accounts(user_id);
+CREATE INDEX idx_oauth_accounts_provider ON oauth_accounts(provider, provider_id);
+CREATE INDEX idx_sessions_token_hash ON sessions(token_hash);
+CREATE INDEX idx_sessions_expires_at ON sessions(expires_at);
+```
+
+### Environment Configuration
+
+```bash
+# OAuth Providers
+BEAVER_OAUTH_GOOGLE_CLIENT_ID=your_google_client_id
+BEAVER_OAUTH_GOOGLE_CLIENT_SECRET=your_google_client_secret
+
+BEAVER_OAUTH_GITHUB_CLIENT_ID=your_github_client_id  
+BEAVER_OAUTH_GITHUB_CLIENT_SECRET=your_github_client_secret
+
+BEAVER_OAUTH_APPLE_CLIENT_ID=com.yourapp.serviceid
+BEAVER_OAUTH_APPLE_TEAM_ID=YOUR_TEAM_ID
+BEAVER_OAUTH_APPLE_KEY_ID=YOUR_KEY_ID
+BEAVER_OAUTH_APPLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----
+...
+-----END PRIVATE KEY-----"
+
+BEAVER_OAUTH_TWITTER_CLIENT_ID=your_twitter_client_id
+BEAVER_OAUTH_TWITTER_CLIENT_SECRET=your_twitter_client_secret
+
+# Security
+JWT_SECRET=your_jwt_secret_key
+COOKIE_SECRET=your_cookie_secret_key
+
+# Database
+DATABASE_URL=postgres://user:pass@localhost/dbname
+```
+
+### Frontend Integration
+
+```javascript
+// Login buttons
+<button onclick="loginWith('google')">Sign in with Google</button>
+<button onclick="loginWith('github')">Sign in with GitHub</button>
+<button onclick="loginWith('apple')">Sign in with Apple</button>
+<button onclick="loginWith('twitter')">Sign in with Twitter</button>
+
+<script>
+function loginWith(provider) {
+    // For PWA/SPA apps, you might handle PKCE on the client side
+    window.location.href = `/auth/${provider}`;
+}
+
+// Handle post-login redirect
+if (window.location.pathname === '/dashboard') {
+    // User successfully authenticated
+    loadUserDashboard();
+}
+</script>
+```
+
+### Key Security Considerations
+
+1. **CSRF Protection** - Always verify state parameter
+2. **PKCE for Public Clients** - Essential for PWA/mobile apps
+3. **Secure Cookies** - HttpOnly, Secure, SameSite attributes
+4. **Token Expiration** - Implement proper session management
+5. **Email Verification** - Verify email ownership when needed
+6. **Account Linking** - Handle users with multiple OAuth accounts
+7. **Error Handling** - Secure error messages without information leakage
+
+This complete auth implementation provides a production-ready authentication system using the OAuth package! 🔐
 
 ## Advanced Usage
 

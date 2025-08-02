@@ -193,6 +193,158 @@ func TestGitHubProviderRefreshToken(t *testing.T) {
 	}
 }
 
+func TestGoogleProvider(t *testing.T) {
+	// Test Google provider creation
+	provider := oauth.NewGoogle(oauth.ProviderConfig{
+		ClientID:     "google_client_id",
+		ClientSecret: "google_client_secret",
+		RedirectURL:  "http://localhost:8080/callback/google",
+	})
+
+	if provider == nil {
+		t.Error("NewGoogle() should return a non-nil provider")
+	}
+
+	if provider.Name() != "google" {
+		t.Errorf("Name() = %v, want google", provider.Name())
+	}
+
+	if !provider.SupportsRefresh() {
+		t.Error("Google should support refresh tokens")
+	}
+
+	if !provider.SupportsPKCE() {
+		t.Error("Google should support PKCE")
+	}
+
+	// Test auth URL generation with PKCE
+	pkce, err := oauth.GeneratePKCEChallenge("S256")
+	if err != nil {
+		t.Fatalf("GeneratePKCEChallenge() error = %v", err)
+	}
+
+	authURL := provider.GetAuthURL("test_state", pkce)
+	if authURL == "" {
+		t.Error("GetAuthURL() should return a non-empty URL")
+	}
+
+	// Should contain Google-specific parameters
+	if !containsString(authURL, "accounts.google.com") {
+		t.Error("Auth URL should use Google's authorization endpoint")
+	}
+	if !containsString(authURL, "access_type=offline") {
+		t.Error("Auth URL should request offline access for refresh tokens")
+	}
+	if !containsString(authURL, "prompt=consent") {
+		t.Error("Auth URL should force consent for refresh tokens")
+	}
+
+	// Test validation
+	err = provider.ValidateConfig()
+	if err != nil {
+		t.Errorf("ValidateConfig() error = %v", err)
+	}
+}
+
+func TestAppleProvider(t *testing.T) {
+	// Test Apple provider creation
+	provider, err := oauth.NewApple(oauth.ProviderConfig{
+		ClientID:    "com.example.app",
+		RedirectURL: "https://example.com/callback",
+		TeamID:      "TEAM123",
+		KeyID:       "KEY123",
+		PrivateKey:  "", // No private key for basic test
+	})
+
+	if err != nil {
+		t.Fatalf("NewApple() error = %v", err)
+	}
+
+	if provider == nil {
+		t.Error("NewApple() should return a non-nil provider")
+	}
+
+	if provider.Name() != "apple" {
+		t.Errorf("Name() = %v, want apple", provider.Name())
+	}
+
+	if !provider.SupportsRefresh() {
+		t.Error("Apple should support refresh tokens")
+	}
+
+	if !provider.SupportsPKCE() {
+		t.Error("Apple should support PKCE")
+	}
+
+	// Test auth URL generation with PKCE
+	pkce, err := oauth.GeneratePKCEChallenge("S256")
+	if err != nil {
+		t.Fatalf("GeneratePKCEChallenge() error = %v", err)
+	}
+
+	authURL := provider.GetAuthURL("test_state", pkce)
+	if authURL == "" {
+		t.Error("GetAuthURL() should return a non-empty URL")
+	}
+
+	// Should contain Apple-specific parameters
+	if !containsString(authURL, "appleid.apple.com") {
+		t.Error("Auth URL should use Apple's authorization endpoint")
+	}
+	if !containsString(authURL, "response_mode=form_post") {
+		t.Error("Auth URL should use form_post response mode")
+	}
+}
+
+func TestTwitterProvider(t *testing.T) {
+	// Test Twitter provider creation
+	provider := oauth.NewTwitter(oauth.ProviderConfig{
+		ClientID:    "twitter_client_id",
+		RedirectURL: "https://example.com/callback",
+	})
+
+	if provider == nil {
+		t.Error("NewTwitter() should return a non-nil provider")
+	}
+
+	if provider.Name() != "twitter" {
+		t.Errorf("Name() = %v, want twitter", provider.Name())
+	}
+
+	if !provider.SupportsRefresh() {
+		t.Error("Twitter should support refresh tokens")
+	}
+
+	if !provider.SupportsPKCE() {
+		t.Error("Twitter should support PKCE")
+	}
+
+	// Test auth URL generation with PKCE
+	pkce, err := oauth.GeneratePKCEChallenge("S256")
+	if err != nil {
+		t.Fatalf("GeneratePKCEChallenge() error = %v", err)
+	}
+
+	authURL := provider.GetAuthURL("test_state", pkce)
+	if authURL == "" {
+		t.Error("GetAuthURL() should return a non-empty URL")
+	}
+
+	// Should contain Twitter-specific parameters
+	if !containsString(authURL, "twitter.com/i/oauth2/authorize") {
+		t.Error("Auth URL should use Twitter's OAuth 2.0 authorization endpoint")
+	}
+	if !containsString(authURL, "code_challenge_method=S256") {
+		t.Error("Auth URL should include PKCE challenge method")
+	}
+
+	// Test validation
+	err = provider.ValidateConfig()
+	if err != nil {
+		t.Errorf("ValidateConfig() error = %v", err)
+	}
+}
+
 // Helper function
 func containsString(s, substr string) bool {
 	return len(s) >= len(substr) && (substr == "" || len(s) > 0 && findSubstring(s, substr))
