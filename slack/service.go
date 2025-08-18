@@ -6,10 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
-	"log"
 	"math"
+	"math/rand"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -54,14 +56,32 @@ func (b *Builder) New() (*Service, error) {
 
 // Service represents a Slack notification service
 type Service struct {
-	webhookURL    string
-	httpClient    *http.Client
-	defaultOpts   *MessageOptions
-	maxRetries    int
-	retryDelay    time.Duration
-	retryMaxDelay time.Duration
-	debug         bool
-	mu            sync.RWMutex
+	webhookURL     string
+	httpClient     *http.Client
+	defaultOpts    *MessageOptions
+	maxRetries     int
+	retryDelay     time.Duration
+	retryMaxDelay  time.Duration
+	retryJitter    bool
+	debug          bool
+	
+	// Production features
+	rateLimiter    RateLimiter
+	circuitBreaker *CircuitBreaker
+	metrics        *Metrics
+	logger         *Logger
+	requestLogger  *RequestLogger
+	
+	// Security
+	maxMessageSize int
+	sanitizeInput  bool
+	redactErrors   bool
+	
+	// State management
+	mu             sync.RWMutex
+	shutdown       chan struct{}
+	wg             sync.WaitGroup
+	isShuttingDown bool
 }
 
 // MessageOptions contains optional parameters for Slack messages
@@ -88,7 +108,7 @@ func Init(configs ...Config) error {
 		if len(configs) > 0 {
 			cfg = &configs[0]
 		} else {
-			cfg, defaultErr = GetConfig(config.LoadOptions{Prefix: "BEAVER_"})
+			cfg, defaultErr = GetConfig(config.LoadOptions{Prefix: "BEAVER_SLACK_"})
 			if defaultErr != nil {
 				return
 			}
@@ -115,17 +135,52 @@ func New(cfg Config) (*Service, error) {
 		IconURL:   cfg.IconURL,
 	}
 
+	// Create rate limiter
+	var rateLimiter RateLimiter
+	if cfg.RateLimit > 0 {
+		rateLimiter = NewTokenBucketLimiter(cfg.RateLimit, cfg.RateBurst)
+	} else {
+		rateLimiter = &NoOpLimiter{}
+	}
+
+	// Create circuit breaker
+	circuitBreaker := NewCircuitBreaker(
+		cfg.CircuitThreshold,
+		cfg.CircuitTimeout,
+		cfg.CircuitMaxRequests,
+	)
+
+	// Create metrics
+	var metrics *Metrics
+	if cfg.EnableMetrics {
+		metrics = NewMetrics()
+	}
+
+	// Create logger
+	logger := NewLogger(cfg.EnableLogging, cfg.LogLevel)
+	requestLogger := NewRequestLogger(logger, cfg.RedactErrors)
+
 	// Initialize
 	return &Service{
 		webhookURL: cfg.WebhookURL,
 		httpClient: &http.Client{
 			Timeout: cfg.Timeout,
 		},
-		defaultOpts:   defaultOpts,
-		maxRetries:    cfg.MaxRetries,
-		retryDelay:    cfg.RetryDelay,
-		retryMaxDelay: cfg.RetryMaxDelay,
-		debug:         cfg.Debug,
+		defaultOpts:    defaultOpts,
+		maxRetries:     cfg.MaxRetries,
+		retryDelay:     cfg.RetryDelay,
+		retryMaxDelay:  cfg.RetryMaxDelay,
+		retryJitter:    cfg.RetryJitter,
+		debug:          cfg.Debug,
+		rateLimiter:    rateLimiter,
+		circuitBreaker: circuitBreaker,
+		metrics:        metrics,
+		logger:         logger,
+		requestLogger:  requestLogger,
+		maxMessageSize: cfg.MaxMessageSize,
+		sanitizeInput:  cfg.SanitizeInput,
+		redactErrors:   cfg.RedactErrors,
+		shutdown:       make(chan struct{}),
 	}, nil
 }
 
@@ -133,6 +188,11 @@ func New(cfg Config) (*Service, error) {
 func validateConfig(cfg Config) error {
 	if cfg.WebhookURL == "" {
 		return fmt.Errorf("%w: webhook URL required", ErrInvalidConfig)
+	}
+
+	// Validate webhook URL format
+	if _, err := url.Parse(cfg.WebhookURL); err != nil {
+		return fmt.Errorf("%w: invalid webhook URL format", ErrInvalidConfig)
 	}
 
 	// Icon validation - can't have both IconEmoji and IconURL
@@ -154,11 +214,29 @@ func validateConfig(cfg Config) error {
 		return fmt.Errorf("%w: retry delay must be positive", ErrInvalidConfig)
 	}
 
+	// Rate limit validation
+	if cfg.RateLimit < 0 {
+		return fmt.Errorf("%w: rate limit cannot be negative", ErrInvalidConfig)
+	}
+
+	// Circuit breaker validation
+	if cfg.CircuitThreshold <= 0 {
+		return fmt.Errorf("%w: circuit threshold must be positive", ErrInvalidConfig)
+	}
+
+	// Message size validation
+	if cfg.MaxMessageSize <= 0 || cfg.MaxMessageSize > 40000 {
+		return fmt.Errorf("%w: max message size must be between 1 and 40000", ErrInvalidConfig)
+	}
+
 	return nil
 }
 
 // Reset clears the global instance (for testing)
 func Reset() {
+	if defaultService != nil {
+		defaultService.Shutdown(context.Background())
+	}
 	defaultService = nil
 	defaultOnce = sync.Once{}
 	defaultErr = nil
@@ -177,7 +255,50 @@ func Health() error {
 	if defaultService == nil {
 		return ErrNotInitialized
 	}
-	return defaultService.Ping(context.Background())
+	return defaultService.Health(context.Background())
+}
+
+// Health performs a health check without sending a message
+func (s *Service) Health(ctx context.Context) error {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	if s.isShuttingDown {
+		return fmt.Errorf("service is shutting down")
+	}
+
+	// Check circuit breaker state
+	if s.circuitBreaker != nil && s.circuitBreaker.State() == CircuitOpen {
+		return fmt.Errorf("circuit breaker is open")
+	}
+
+	// Perform a lightweight check - validate webhook URL is reachable
+	// We'll do a HEAD request to the webhook domain
+	u, err := url.Parse(s.webhookURL)
+	if err != nil {
+		return fmt.Errorf("invalid webhook URL: %w", err)
+	}
+
+	// Create a health check request
+	healthURL := fmt.Sprintf("https://%s", u.Host)
+	req, err := http.NewRequestWithContext(ctx, http.MethodHead, healthURL, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create health check request: %w", err)
+	}
+
+	// Use a shorter timeout for health checks
+	healthClient := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	resp, err := healthClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("health check failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Any response means the host is reachable
+	return nil
 }
 
 // Ping sends a test message to verify webhook connectivity
@@ -190,6 +311,47 @@ func (s *Service) Ping(ctx context.Context) error {
 func (s *Service) PingWithOptions(ctx context.Context, opts *MessageOptions) error {
 	_, err := s.SendWithContext(ctx, "🏓 Ping", opts)
 	return err
+}
+
+// Shutdown gracefully shuts down the service
+func (s *Service) Shutdown(ctx context.Context) error {
+	s.mu.Lock()
+	if s.isShuttingDown {
+		s.mu.Unlock()
+		return nil
+	}
+	s.isShuttingDown = true
+	close(s.shutdown)
+	s.mu.Unlock()
+
+	// Wait for ongoing operations with timeout
+	done := make(chan struct{})
+	go func() {
+		s.wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		if s.logger != nil {
+			s.logger.Info("Slack service shutdown complete")
+		}
+		return nil
+	case <-ctx.Done():
+		if s.logger != nil {
+			s.logger.Warn("Slack service shutdown timeout")
+		}
+		return ctx.Err()
+	}
+}
+
+// GetStats returns service statistics
+func (s *Service) GetStats() *Stats {
+	if s.metrics == nil {
+		return nil
+	}
+	stats := s.metrics.GetStats()
+	return &stats
 }
 
 // SetDefaultChannel sets the default channel for all messages sent by this service
@@ -300,7 +462,7 @@ func (s *Service) SendAlertWithOptionsContext(ctx context.Context, message strin
 	return s.SendWithContext(ctx, formattedMessage, opts)
 }
 
-// SendError sends an error message to Slack
+// SendError sends an error message to Slack with proper redaction
 func (s *Service) SendError(err error) (string, error) {
 	return s.SendErrorWithContext(context.Background(), err)
 }
@@ -310,8 +472,61 @@ func (s *Service) SendErrorWithContext(ctx context.Context, err error) (string, 
 	if err == nil {
 		return "", nil
 	}
-	formattedMessage := fmt.Sprintf("❌ *Error*\n```\n%v\n```", err)
+	
+	// Redact sensitive information if enabled
+	errorMsg := err.Error()
+	if s.redactErrors {
+		errorMsg = s.sanitizeErrorMessage(errorMsg)
+	}
+	
+	formattedMessage := fmt.Sprintf("❌ *Error*\n```\n%v\n```", errorMsg)
 	return s.SendWithContext(ctx, formattedMessage, nil)
+}
+
+// sanitizeErrorMessage removes sensitive information from error messages
+func (s *Service) sanitizeErrorMessage(msg string) string {
+	// Remove potential secrets/tokens
+	patterns := []string{
+		"token", "secret", "password", "key", "credential",
+		"auth", "bearer", "api_key", "access_token",
+	}
+	
+	for _, pattern := range patterns {
+		if strings.Contains(strings.ToLower(msg), pattern) {
+			// Replace the value after the pattern
+			msg = sanitizePattern(msg, pattern)
+		}
+	}
+	
+	return msg
+}
+
+// sanitizePattern replaces sensitive values in a message
+func sanitizePattern(msg, pattern string) string {
+	lower := strings.ToLower(msg)
+	idx := strings.Index(lower, pattern)
+	if idx == -1 {
+		return msg
+	}
+	
+	// Find the value after the pattern (usually after '=' or ':')
+	valueStart := idx + len(pattern)
+	for valueStart < len(msg) && (msg[valueStart] == ' ' || msg[valueStart] == '=' || msg[valueStart] == ':') {
+		valueStart++
+	}
+	
+	if valueStart >= len(msg) {
+		return msg
+	}
+	
+	// Find the end of the value
+	valueEnd := valueStart
+	for valueEnd < len(msg) && msg[valueEnd] != ' ' && msg[valueEnd] != ',' && msg[valueEnd] != '\n' {
+		valueEnd++
+	}
+	
+	// Replace the value with REDACTED
+	return msg[:valueStart] + "REDACTED" + msg[valueEnd:]
 }
 
 // SendSuccess sends a success message to Slack
@@ -332,6 +547,40 @@ func (s *Service) Send(message string, opts *MessageOptions) (string, error) {
 
 // SendWithContext sends a raw message to Slack with context support
 func (s *Service) SendWithContext(ctx context.Context, message string, opts *MessageOptions) (string, error) {
+	// Check shutdown state
+	s.mu.RLock()
+	if s.isShuttingDown {
+		s.mu.RUnlock()
+		return "", fmt.Errorf("service is shutting down")
+	}
+	s.mu.RUnlock()
+
+	// Track operation
+	s.wg.Add(1)
+	defer s.wg.Done()
+
+	// Validate and sanitize input
+	if err := s.validateInput(message); err != nil {
+		if s.metrics != nil {
+			s.metrics.RecordFailure(err)
+		}
+		return "", err
+	}
+
+	if s.sanitizeInput {
+		message = s.sanitizeMessage(message)
+	}
+
+	// Apply rate limiting
+	if s.rateLimiter != nil {
+		if err := s.rateLimiter.Wait(ctx); err != nil {
+			if s.metrics != nil {
+				s.metrics.RecordRateLimit()
+			}
+			return "", fmt.Errorf("rate limit exceeded: %w", err)
+		}
+	}
+
 	// Create the message payload
 	msg := s.buildMessage(message, opts)
 
@@ -341,12 +590,67 @@ func (s *Service) SendWithContext(ctx context.Context, message string, opts *Mes
 		return "", fmt.Errorf("failed to marshal message: %w", err)
 	}
 
-	// Send with retry
-	return s.sendWithRetry(ctx, payload)
+	// Record metrics
+	if s.metrics != nil {
+		s.metrics.RecordMessage()
+	}
+
+	// Send with retry and circuit breaker
+	start := time.Now()
+	resp, err := s.sendWithRetry(ctx, payload)
+	
+	if s.metrics != nil {
+		if err == nil {
+			s.metrics.RecordSuccess(time.Since(start))
+		} else {
+			s.metrics.RecordFailure(err)
+		}
+	}
+
+	return resp, err
+}
+
+// validateInput validates the input message
+func (s *Service) validateInput(message string) error {
+	if len(message) == 0 {
+		return fmt.Errorf("%w: message cannot be empty", ErrInvalidInput)
+	}
+
+	if len(message) > s.maxMessageSize {
+		return fmt.Errorf("%w: message size %d exceeds limit %d", ErrInputTooLarge, len(message), s.maxMessageSize)
+	}
+
+	return nil
+}
+
+// sanitizeMessage sanitizes the input message
+func (s *Service) sanitizeMessage(message string) string {
+	// HTML escape to prevent injection
+	message = html.EscapeString(message)
+	
+	// Unescape common safe characters for readability
+	message = strings.ReplaceAll(message, "&lt;", "<")
+	message = strings.ReplaceAll(message, "&gt;", ">")
+	message = strings.ReplaceAll(message, "&#39;", "'")
+	message = strings.ReplaceAll(message, "&quot;", "\"")
+	
+	return message
 }
 
 // SendRichMessage sends a rich message with blocks and attachments
 func (s *Service) SendRichMessage(ctx context.Context, msg *RichMessage) (string, error) {
+	// Check shutdown state
+	s.mu.RLock()
+	if s.isShuttingDown {
+		s.mu.RUnlock()
+		return "", fmt.Errorf("service is shutting down")
+	}
+	s.mu.RUnlock()
+
+	// Track operation
+	s.wg.Add(1)
+	defer s.wg.Done()
+
 	// Apply defaults if not set
 	if msg.Username == "" && s.defaultOpts.Username != "" {
 		msg.Username = s.defaultOpts.Username
@@ -367,8 +671,39 @@ func (s *Service) SendRichMessage(ctx context.Context, msg *RichMessage) (string
 		return "", fmt.Errorf("failed to marshal rich message: %w", err)
 	}
 
-	// Send with retry
-	return s.sendWithRetry(ctx, payload)
+	// Validate payload size
+	if len(payload) > s.maxMessageSize {
+		return "", fmt.Errorf("%w: payload size %d exceeds limit %d", ErrInputTooLarge, len(payload), s.maxMessageSize)
+	}
+
+	// Apply rate limiting
+	if s.rateLimiter != nil {
+		if err := s.rateLimiter.Wait(ctx); err != nil {
+			if s.metrics != nil {
+				s.metrics.RecordRateLimit()
+			}
+			return "", fmt.Errorf("rate limit exceeded: %w", err)
+		}
+	}
+
+	// Record metrics
+	if s.metrics != nil {
+		s.metrics.RecordMessage()
+	}
+
+	// Send with retry and circuit breaker
+	start := time.Now()
+	resp, err := s.sendWithRetry(ctx, payload)
+	
+	if s.metrics != nil {
+		if err == nil {
+			s.metrics.RecordSuccess(time.Since(start))
+		} else {
+			s.metrics.RecordFailure(err)
+		}
+	}
+
+	return resp, err
 }
 
 // SendBatch sends multiple messages in parallel
@@ -457,47 +792,83 @@ func (s *Service) buildMessage(text string, opts *MessageOptions) Message {
 	return msg
 }
 
-// sendWithRetry sends the request with exponential backoff retry
+// sendWithRetry sends the request with exponential backoff retry and jitter
 func (s *Service) sendWithRetry(ctx context.Context, payload []byte) (string, error) {
 	var lastErr error
 	delay := s.retryDelay
 
 	for attempt := 0; attempt <= s.maxRetries; attempt++ {
 		if attempt > 0 {
+			// Calculate delay with optional jitter
+			actualDelay := delay
+			if s.retryJitter {
+				// Add up to 25% jitter
+				jitter := time.Duration(rand.Float64() * float64(delay) * 0.25)
+				actualDelay = delay + jitter
+			}
+
 			// Wait before retry with exponential backoff
 			select {
 			case <-ctx.Done():
 				return "", fmt.Errorf("%w: %v", ErrContextCanceled, ctx.Err())
-			case <-time.After(delay):
+			case <-time.After(actualDelay):
 				// Double the delay for next attempt, up to max
 				delay = time.Duration(math.Min(float64(delay*2), float64(s.retryMaxDelay)))
 			}
 
-			if s.debug {
-				log.Printf("[SLACK] Retry attempt %d/%d after error: %v", attempt, s.maxRetries, lastErr)
+			if s.logger != nil {
+				s.logger.Debug("Retry attempt %d/%d after error: %v", attempt, s.maxRetries, lastErr)
 			}
 		}
 
-		resp, err := s.doRequest(ctx, payload)
-		if err == nil {
-			return resp, nil
+		// Use circuit breaker if available
+		if s.circuitBreaker != nil {
+			resp, err := s.executeWithCircuitBreaker(ctx, payload)
+			if err == nil {
+				return resp, nil
+			}
+			lastErr = err
+		} else {
+			resp, err := s.doRequest(ctx, payload)
+			if err == nil {
+				return resp, nil
+			}
+			lastErr = err
 		}
 
-		lastErr = err
-
 		// Check if error is retryable
-		if !isRetryableError(err) {
-			return "", err
+		if !isRetryableError(lastErr) {
+			return "", lastErr
 		}
 	}
 
 	return "", fmt.Errorf("%w: %v", ErrMaxRetriesExceeded, lastErr)
 }
 
+// executeWithCircuitBreaker executes the request with circuit breaker protection
+func (s *Service) executeWithCircuitBreaker(ctx context.Context, payload []byte) (string, error) {
+	var resp string
+	var err error
+
+	cbErr := s.circuitBreaker.Execute(ctx, func() error {
+		resp, err = s.doRequest(ctx, payload)
+		return err
+	})
+
+	if cbErr != nil {
+		if cbErr == ErrCircuitOpen && s.metrics != nil {
+			s.metrics.RecordCircuitOpen()
+		}
+		return "", cbErr
+	}
+
+	return resp, err
+}
+
 // doRequest performs the actual HTTP request
 func (s *Service) doRequest(ctx context.Context, payload []byte) (string, error) {
-	if s.debug {
-		log.Printf("[SLACK] Sending payload: %s", string(payload))
+	if s.requestLogger != nil {
+		s.requestLogger.LogRequest(ctx, string(payload))
 	}
 
 	// Create the request with context
@@ -508,6 +879,7 @@ func (s *Service) doRequest(ctx context.Context, payload []byte) (string, error)
 
 	// Set headers
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "Beaver-Kit-Slack/1.0")
 
 	// Send the request
 	resp, err := s.httpClient.Do(req)
@@ -522,8 +894,8 @@ func (s *Service) doRequest(ctx context.Context, payload []byte) (string, error)
 		return "", fmt.Errorf("failed to read response: %w", err)
 	}
 
-	if s.debug {
-		log.Printf("[SLACK] Response status: %d, body: %s", resp.StatusCode, string(body))
+	if s.requestLogger != nil {
+		s.requestLogger.LogResponse(ctx, resp.StatusCode, string(body))
 	}
 
 	// Check for rate limiting
@@ -547,6 +919,11 @@ func (s *Service) doRequest(ctx context.Context, payload []byte) (string, error)
 
 // isRetryableError determines if an error should trigger a retry
 func isRetryableError(err error) bool {
+	// Don't retry circuit breaker open errors
+	if err == ErrCircuitOpen {
+		return false
+	}
+
 	// Retry on rate limiting
 	if err == ErrRateLimited {
 		return true
@@ -558,9 +935,12 @@ func isRetryableError(err error) bool {
 	}
 
 	// Check for temporary network errors
-	if strings.Contains(err.Error(), "timeout") ||
-		strings.Contains(err.Error(), "connection refused") ||
-		strings.Contains(err.Error(), "no such host") {
+	errStr := err.Error()
+	if strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "no such host") ||
+		strings.Contains(errStr, "temporary failure") ||
+		strings.Contains(errStr, "i/o timeout") {
 		return true
 	}
 
