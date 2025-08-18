@@ -2,7 +2,6 @@ package oauth
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -373,19 +372,3 @@ func (g *GoogleProvider) ParseIDToken(idToken string) (map[string]interface{}, e
 	return claims, nil
 }
 
-// Helper function for base64 URL decoding
-func base64URLDecode(s string) ([]byte, error) {
-	// Replace URL-safe characters
-	s = strings.ReplaceAll(s, "-", "+")
-	s = strings.ReplaceAll(s, "_", "/")
-	
-	// Add padding
-	switch len(s) % 4 {
-	case 2:
-		s += "=="
-	case 3:
-		s += "="
-	}
-	
-	return base64.StdEncoding.DecodeString(s)
-}

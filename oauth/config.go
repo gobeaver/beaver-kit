@@ -39,6 +39,9 @@ type Config struct {
 	// TokenCacheDuration is how long to cache tokens
 	TokenCacheDuration time.Duration `env:"OAUTH_TOKEN_CACHE_DURATION,default:1h"`
 
+	// StateTimeout is how long state parameters are valid
+	StateTimeout time.Duration `env:"OAUTH_STATE_TIMEOUT,default:5m"`
+
 	// HTTPTimeout is the timeout for HTTP requests
 	HTTPTimeout time.Duration `env:"OAUTH_HTTP_TIMEOUT,default:30s"`
 

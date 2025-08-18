@@ -152,7 +152,7 @@ func (s *Service) GetAuthURL(ctx context.Context) (string, error) {
 		State:         state,
 		PKCEChallenge: pkce,
 		CreatedAt:     time.Now(),
-		ExpiresAt:     time.Now().Add(5 * time.Minute),
+		ExpiresAt:     time.Now().Add(s.config.StateTimeout),
 		Provider:      s.provider.Name(),
 	}
 
@@ -171,15 +171,31 @@ func (s *Service) Exchange(ctx context.Context, code, state string) (*Token, err
 		return nil, ErrNotInitialized
 	}
 
-	// Retrieve session data
-	sessionData, err := s.sessions.Retrieve(ctx, state)
+	// Retrieve and immediately delete session to prevent replay attacks
+	sessionData, err := s.sessions.RetrieveAndDelete(ctx, state)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidState, err)
+		// If RetrieveAndDelete is not implemented, fallback to separate operations
+		sessionData, err = s.sessions.Retrieve(ctx, state)
+		if err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrInvalidState, err)
+		}
+		// Immediately delete to prevent replay
+		s.sessions.Delete(ctx, state)
 	}
 
-	// Validate session
+	// Validate session hasn't expired
 	if sessionData.IsExpired() {
 		return nil, fmt.Errorf("%w: session expired", ErrInvalidState)
+	}
+
+	// Validate state matches (double-check against timing attacks)
+	if sessionData.State != state {
+		return nil, fmt.Errorf("%w: state mismatch", ErrInvalidState)
+	}
+
+	// Validate provider matches if set
+	if sessionData.Provider != "" && sessionData.Provider != s.provider.Name() {
+		return nil, fmt.Errorf("%w: provider mismatch", ErrInvalidState)
 	}
 
 	// Exchange code for token
@@ -192,9 +208,6 @@ func (s *Service) Exchange(ctx context.Context, code, state string) (*Token, err
 	if token.ExpiresAt.IsZero() && token.ExpiresIn > 0 {
 		token.ExpiresAt = time.Now().Add(time.Duration(token.ExpiresIn) * time.Second)
 	}
-
-	// Clean up session
-	s.sessions.Delete(ctx, state)
 
 	// Cache token if enabled
 	if s.config.TokenCacheDuration > 0 {
@@ -361,6 +374,21 @@ func (s *MemorySessionStore) Delete(ctx context.Context, key string) error {
 	defer s.mu.Unlock()
 	delete(s.sessions, key)
 	return nil
+}
+
+func (s *MemorySessionStore) RetrieveAndDelete(ctx context.Context, key string) (*SessionData, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	
+	data, ok := s.sessions[key]
+	if !ok {
+		return nil, ErrSessionNotFound
+	}
+	
+	// Immediately delete to prevent replay
+	delete(s.sessions, key)
+	
+	return data, nil
 }
 
 func (s *MemorySessionStore) cleanup() {

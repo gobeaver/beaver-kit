@@ -28,6 +28,12 @@ type Provider interface {
 
 	// SupportsPKCE indicates if the provider supports PKCE
 	SupportsPKCE() bool
+	
+	// RevokeToken revokes an access or refresh token
+	RevokeToken(ctx context.Context, token string) error
+	
+	// ValidateConfig validates the provider configuration
+	ValidateConfig() error
 }
 
 // Token represents OAuth tokens
@@ -96,11 +102,12 @@ type AuthorizationResponse struct {
 
 // SessionData represents OAuth session data that can be stored
 type SessionData struct {
-	State         string         `json:"state"`
-	PKCEChallenge *PKCEChallenge `json:"pkce_challenge,omitempty"`
-	CreatedAt     time.Time      `json:"created_at"`
-	ExpiresAt     time.Time      `json:"expires_at"`
-	Provider      string         `json:"provider"`
+	State         string                 `json:"state"`
+	PKCEChallenge *PKCEChallenge         `json:"pkce_challenge,omitempty"`
+	CreatedAt     time.Time              `json:"created_at"`
+	ExpiresAt     time.Time              `json:"expires_at"`
+	Provider      string                 `json:"provider"`
+	Metadata      map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // IsExpired checks if the session data is expired
@@ -128,6 +135,10 @@ type SessionStore interface {
 
 	// Delete removes session data by key
 	Delete(ctx context.Context, key string) error
+
+	// RetrieveAndDelete atomically retrieves and deletes session data
+	// This prevents replay attacks by ensuring a session can only be used once
+	RetrieveAndDelete(ctx context.Context, key string) (*SessionData, error)
 }
 
 // TokenStore interface for caching OAuth tokens
@@ -144,21 +155,24 @@ type TokenStore interface {
 
 // ProviderConfig represents configuration for a specific OAuth provider
 type ProviderConfig struct {
-	ClientID     string
-	ClientSecret string
-	RedirectURL  string
-	Scopes       []string
-	AuthURL      string
-	TokenURL     string
-	UserInfoURL  string
-	HTTPClient   HTTPClient
-	Debug        bool
+	// Provider type (google, github, apple, twitter, custom)
+	Type         string     `json:"type,omitempty" env:"TYPE"`
+	ClientID     string     `json:"client_id" env:"CLIENT_ID"`
+	ClientSecret string     `json:"client_secret,omitempty" env:"CLIENT_SECRET"`
+	RedirectURL  string     `json:"redirect_url" env:"REDIRECT_URL"`
+	Scopes       []string   `json:"scopes,omitempty" env:"SCOPES"`
+	AuthURL      string     `json:"auth_url,omitempty" env:"AUTH_URL"`
+	TokenURL     string     `json:"token_url,omitempty" env:"TOKEN_URL"`
+	UserInfoURL  string     `json:"userinfo_url,omitempty" env:"USERINFO_URL"`
+	RevokeURL    string     `json:"revoke_url,omitempty" env:"REVOKE_URL"`
+	HTTPClient   HTTPClient `json:"-"`
+	Debug        bool       `json:"debug,omitempty" env:"DEBUG"`
 	
 	// Apple-specific
-	TeamID     string
-	KeyID      string
-	PrivateKey string
+	TeamID     string `json:"team_id,omitempty" env:"APPLE_TEAM_ID"`
+	KeyID      string `json:"key_id,omitempty" env:"APPLE_KEY_ID"`
+	PrivateKey string `json:"private_key,omitempty" env:"APPLE_PRIVATE_KEY"`
 	
 	// Twitter-specific
-	APIVersion string
+	APIVersion string `json:"api_version,omitempty" env:"TWITTER_API_VERSION"`
 }

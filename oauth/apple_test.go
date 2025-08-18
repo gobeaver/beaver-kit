@@ -191,6 +191,9 @@ func TestAppleProvider_ParseIDToken(t *testing.T) {
 		t.Fatalf("NewApple() error = %v", err)
 	}
 
+	// Enable test mode to skip signature verification
+	provider.EnableTestMode()
+
 	// Test with a mock JWT (header.payload.signature)
 	mockIDToken := "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIwMDEyMzQuYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoiLCJlbWFpbCI6InRlc3RAcHJpdmF0ZXJlbGF5LmFwcGxlaWQuY29tIiwiZW1haWxfdmVyaWZpZWQiOiJ0cnVlIn0.signature"
 

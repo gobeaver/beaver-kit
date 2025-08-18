@@ -1,17 +1,35 @@
-# OAuth Package
+# OAuth Package - Production-Ready OAuth 2.0 & OpenID Connect
 
-A flexible and secure OAuth 2.0 client implementation for Go applications, supporting multiple providers with PKCE (Proof Key for Code Exchange) for enhanced security.
+A comprehensive, production-ready OAuth 2.0 and OpenID Connect implementation for Go applications. Part of the Beaver Kit ecosystem.
 
 ## Features
 
-- 🔐 **Multiple OAuth Providers** - GitHub, Google, Apple, Twitter (X)
-- 🛡️ **PKCE Support** - Enhanced security with Proof Key for Code Exchange
-- ⚙️ **Environment Configuration** - Easy setup via environment variables
-- 🔄 **Token Management** - Automatic token handling with refresh support
-- 📦 **Session Management** - Built-in session store for OAuth state
-- 🎯 **Type Safe** - Strongly typed interfaces and configurations
-- 🧪 **Well Tested** - Comprehensive test coverage
-- 🏗️ **Builder Pattern** - Flexible configuration with custom prefixes
+### 🔐 Security First
+- **Apple JWT Validation**: Full ECDSA/RSA signature verification with public key caching
+- **PKCE Support**: RFC 7636 compliant implementation (43-128 character verifiers)
+- **State Management**: Replay attack prevention with immediate session deletion
+- **Token Encryption**: AES-GCM encryption for sensitive token storage
+- **Security Headers**: CORS, HSTS, CSP, XSS protection middleware
+
+### 🌐 Multi-Provider Architecture
+- **Built-in Providers**: Google, GitHub, Apple, Twitter
+- **Custom Provider Support**: Easy integration with any OAuth 2.0 provider
+- **Dynamic Registration**: Add/remove providers at runtime
+- **Provider Isolation**: Circuit breakers per provider
+
+### 💾 Advanced Token Management
+- **Automatic Refresh**: Tokens refreshed before expiration
+- **Encrypted Storage**: Secure token persistence
+- **Bulk Operations**: Efficient cleanup of expired tokens
+- **User Limits**: Configurable token limits per user
+- **Cache Integration**: Built-in caching support
+
+### 🛡️ Production Hardening
+- **Rate Limiting**: Token bucket and sliding window algorithms
+- **Circuit Breakers**: Protect against cascading failures
+- **Health Checks**: Liveness, readiness, and component health endpoints
+- **Monitoring**: Comprehensive metrics collection
+- **Request Logging**: Structured logging with sensitive data redaction
 
 ## Installation
 

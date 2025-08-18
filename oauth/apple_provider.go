@@ -18,9 +18,10 @@ import (
 
 // AppleProvider implements OAuth provider for Apple Sign-In
 type AppleProvider struct {
-	config     ProviderConfig
-	httpClient HTTPClient
-	privateKey *ecdsa.PrivateKey
+	config       ProviderConfig
+	httpClient   HTTPClient
+	privateKey   *ecdsa.PrivateKey
+	jwtValidator *AppleJWTValidator
 }
 
 // AppleUser represents the user data returned by Apple
@@ -50,8 +51,9 @@ func NewApple(config ProviderConfig) (*AppleProvider, error) {
 	}
 
 	provider := &AppleProvider{
-		config:     config,
-		httpClient: http.DefaultClient,
+		config:       config,
+		httpClient:   http.DefaultClient,
+		jwtValidator: NewAppleJWTValidator(config.ClientID, http.DefaultClient),
 	}
 
 	// Parse private key if provided
@@ -69,6 +71,7 @@ func NewApple(config ProviderConfig) (*AppleProvider, error) {
 // SetHTTPClient sets a custom HTTP client
 func (a *AppleProvider) SetHTTPClient(client HTTPClient) {
 	a.httpClient = client
+	a.jwtValidator = NewAppleJWTValidator(a.config.ClientID, client)
 }
 
 // GetAuthURL returns the authorization URL with PKCE parameters if enabled
@@ -270,32 +273,47 @@ func (a *AppleProvider) GetUserInfo(ctx context.Context, accessToken string) (*U
 
 // GetUserInfoFromIDToken extracts user information from Apple ID token
 func (a *AppleProvider) GetUserInfoFromIDToken(idToken string) (*UserInfo, error) {
-	// Parse ID token (this is a simplified implementation)
-	claims, err := a.ParseIDToken(idToken)
+	return a.GetUserInfoFromIDTokenWithNonce(idToken, "")
+}
+
+// GetUserInfoFromIDTokenWithNonce extracts user information from Apple ID token with nonce verification
+func (a *AppleProvider) GetUserInfoFromIDTokenWithNonce(idToken string, nonce string) (*UserInfo, error) {
+	// Validate and parse ID token
+	claims, err := a.jwtValidator.ValidateIDToken(context.Background(), idToken, nonce)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse ID token: %w", err)
+		return nil, fmt.Errorf("failed to validate ID token: %w", err)
 	}
 
 	userInfo := &UserInfo{
-		Provider: "apple",
-		Raw:      claims,
+		Provider:      "apple",
+		ID:            claims.Subject,
+		Email:         claims.Email,
+		EmailVerified: claims.IsEmailVerified(),
 	}
 
-	// Extract standard claims
-	if sub, ok := claims["sub"].(string); ok {
-		userInfo.ID = sub
+	// Add raw claims for backward compatibility
+	rawClaims := make(map[string]interface{})
+	rawClaims["sub"] = claims.Subject
+	rawClaims["iss"] = claims.Issuer
+	rawClaims["aud"] = claims.Audience
+	rawClaims["exp"] = claims.ExpirationTime
+	rawClaims["iat"] = claims.IssuedAt
+	
+	if claims.Email != "" {
+		rawClaims["email"] = claims.Email
 	}
-
-	if email, ok := claims["email"].(string); ok {
-		userInfo.Email = email
+	if claims.EmailVerified != nil {
+		rawClaims["email_verified"] = claims.EmailVerified
 	}
-
-	if emailVerified, ok := claims["email_verified"].(string); ok {
-		userInfo.EmailVerified = emailVerified == "true"
+	if claims.IsPrivateEmail != nil {
+		rawClaims["is_private_email"] = claims.IsPrivateEmail
 	}
-
-	// Apple sometimes includes name in the claims
-	if name, ok := claims["name"].(map[string]interface{}); ok {
+	if claims.RealUserStatus > 0 {
+		rawClaims["real_user_status"] = claims.RealUserStatus
+	}
+	
+	// Apple sometimes includes name in extra claims
+	if name, ok := claims.Extra["name"].(map[string]interface{}); ok {
 		if firstName, ok := name["firstName"].(string); ok {
 			userInfo.FirstName = firstName
 		}
@@ -306,7 +324,9 @@ func (a *AppleProvider) GetUserInfoFromIDToken(idToken string) (*UserInfo, error
 			userInfo.Name = strings.TrimSpace(userInfo.FirstName + " " + userInfo.LastName)
 		}
 	}
-
+	
+	userInfo.Raw = rawClaims
+	
 	return userInfo, nil
 }
 
@@ -382,6 +402,11 @@ func (a *AppleProvider) SupportsPKCE() bool {
 	return true
 }
 
+// EnableTestMode enables test mode which skips JWT signature verification (TESTING ONLY)
+func (a *AppleProvider) EnableTestMode() {
+	a.jwtValidator.EnableTestMode()
+}
+
 // generateClientSecret creates a JWT client secret for Apple
 func (a *AppleProvider) generateClientSecret() (string, error) {
 	if a.privateKey == nil {
@@ -453,30 +478,59 @@ func (a *AppleProvider) generateJWT(header, claims map[string]interface{}) (stri
 
 // ParseIDToken parses and validates Apple ID Token (JWT)
 func (a *AppleProvider) ParseIDToken(idToken string) (map[string]interface{}, error) {
-	parts := strings.Split(idToken, ".")
-	if len(parts) != 3 {
-		return nil, fmt.Errorf("invalid ID token format")
-	}
+	return a.ParseIDTokenWithNonce(idToken, "")
+}
 
-	// Decode the payload (second part)
-	payload := parts[1]
-	
-	// Add padding if needed for base64 decoding
-	if len(payload)%4 != 0 {
-		payload += strings.Repeat("=", 4-len(payload)%4)
-	}
-
-	decoded, err := base64URLDecode(payload)
+// ParseIDTokenWithNonce parses and validates Apple ID Token with nonce verification
+func (a *AppleProvider) ParseIDTokenWithNonce(idToken string, nonce string) (map[string]interface{}, error) {
+	claims, err := a.jwtValidator.ValidateIDToken(context.Background(), idToken, nonce)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decode ID token payload: %w", err)
+		return nil, err
 	}
-
-	var claims map[string]interface{}
-	if err := json.Unmarshal(decoded, &claims); err != nil {
-		return nil, fmt.Errorf("failed to parse ID token claims: %w", err)
+	
+	// Convert claims to map[string]interface{} for backward compatibility
+	result := make(map[string]interface{})
+	
+	// Standard claims
+	result["iss"] = claims.Issuer
+	result["sub"] = claims.Subject
+	result["aud"] = claims.Audience
+	result["exp"] = claims.ExpirationTime
+	result["iat"] = claims.IssuedAt
+	
+	if claims.AuthTime > 0 {
+		result["auth_time"] = claims.AuthTime
 	}
-
-	return claims, nil
+	if claims.Nonce != "" {
+		result["nonce"] = claims.Nonce
+	}
+	
+	// Apple-specific claims
+	if claims.Email != "" {
+		result["email"] = claims.Email
+	}
+	if claims.EmailVerified != nil {
+		result["email_verified"] = claims.EmailVerified
+	}
+	if claims.IsPrivateEmail != nil {
+		result["is_private_email"] = claims.IsPrivateEmail
+	}
+	if claims.RealUserStatus > 0 {
+		result["real_user_status"] = claims.RealUserStatus
+	}
+	if claims.TransferSub != "" {
+		result["transfer_sub"] = claims.TransferSub
+	}
+	if claims.AtHash != "" {
+		result["at_hash"] = claims.AtHash
+	}
+	
+	// Add extra claims
+	for k, v := range claims.Extra {
+		result[k] = v
+	}
+	
+	return result, nil
 }
 
 // parseApplePrivateKey parses the Apple private key from PEM format
