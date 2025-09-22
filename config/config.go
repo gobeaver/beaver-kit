@@ -10,12 +10,42 @@ import (
 	"time"
 )
 
-// LoadOptions defines options for loading configuration
+// LoadOptions defines options for loading configuration from environment variables.
 type LoadOptions struct {
-	Prefix string
+	Prefix string // Prefix to prepend to environment variable names (default: "BEAVER_")
+	Debug  bool   // Enable debug logging of configuration loading process
 }
 
-// Load populates a struct from .env file and environment variables
+// Load populates a struct from .env file and environment variables using reflection.
+// This function automatically loads .env files from the current directory and then
+// reads environment variables to populate the provided struct.
+//
+// The function uses struct field tags to determine environment variable names:
+//   - `env:"VAR_NAME"`: Maps the field to the specified environment variable
+//   - `env:"VAR_NAME,default:value"`: Provides a default value if env var is not set
+//
+// Environment variable names are automatically prefixed with the value specified
+// in LoadOptions.Prefix (defaults to "BEAVER_").
+//
+// Parameters:
+//   - cfg: Pointer to a struct to populate with configuration values
+//   - opts: Optional LoadOptions to customize loading behavior
+//
+// Returns an error if:
+//   - cfg is not a pointer to a struct
+//   - Type conversion fails for any field
+//   - Required environment variables are missing (if validation is implemented)
+//
+// Example:
+//	type Config struct {
+//	    DatabaseURL string `env:"DATABASE_URL"`
+//	    Port        int    `env:"PORT,default:8080"`
+//	    Debug       bool   `env:"DEBUG,default:false"`
+//	}
+//	
+//	var cfg Config
+//	err := config.Load(&cfg, config.LoadOptions{Prefix: "MYAPP_"})
+//	// Will look for MYAPP_DATABASE_URL, MYAPP_PORT, MYAPP_DEBUG
 func Load(cfg interface{}, opts ...LoadOptions) error {
 	options := LoadOptions{Prefix: "BEAVER_"} // Default
 	if len(opts) > 0 {
@@ -66,6 +96,21 @@ func Load(cfg interface{}, opts ...LoadOptions) error {
 	return nil
 }
 
+// setFieldValue sets the value of a struct field using reflection and type conversion.
+// This is an internal helper function that handles conversion from string environment
+// variable values to the appropriate Go types.
+//
+// Supported types:
+//   - string: Direct assignment
+//   - int, int64: Parsed using strconv.ParseInt with base 10
+//   - bool: Parsed using strconv.ParseBool (supports "true", "false", "1", "0", etc.)
+//   - time.Duration: Parsed using time.ParseDuration
+//
+// Parameters:
+//   - field: The reflect.Value of the struct field to set
+//   - value: The string value from the environment variable
+//
+// Returns an error if type conversion fails or the type is unsupported.
 func setFieldValue(field reflect.Value, value string) error {
 	// Check for time.Duration first
 	if field.Type() == reflect.TypeOf(time.Duration(0)) {

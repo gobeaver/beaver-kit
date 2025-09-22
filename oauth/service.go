@@ -13,24 +13,52 @@ import (
 	"github.com/gobeaver/beaver-kit/krypto"
 )
 
-// Global instance management
+// Global instance management for singleton pattern
 var (
-	defaultService *Service
-	defaultOnce    sync.Once
-	defaultErr     error
+	defaultService *Service   // Global OAuth service instance
+	defaultOnce    sync.Once  // Ensures single initialization
+	defaultErr     error      // Stores initialization error
 )
 
-// Service is the main OAuth service
+// Service is the main OAuth service that handles authentication flows.
+// It provides methods for generating authorization URLs, exchanging codes for tokens,
+// refreshing tokens, and retrieving user information.
+//
+// The service supports multiple OAuth providers and includes security features like:
+//   - PKCE for public clients
+//   - State parameter validation for CSRF protection
+//   - Session management with automatic cleanup
+//   - Token caching with configurable TTL
 type Service struct {
-	config   Config
-	provider Provider
-	client   HTTPClient
-	sessions SessionStore
-	tokens   TokenStore
-	stateGen StateGenerator
+	config   Config         // Service configuration
+	provider Provider       // OAuth provider implementation
+	client   HTTPClient     // HTTP client for API requests
+	sessions SessionStore   // Session storage for state management
+	tokens   TokenStore     // Token storage for caching
+	stateGen StateGenerator // State parameter generator
 }
 
-// Init initializes the global OAuth service instance
+// Init initializes the global OAuth service instance using the provided configuration
+// or loading from environment variables with the BEAVER_OAUTH_ prefix.
+//
+// This function is safe to call multiple times - initialization only happens once.
+// If no configuration is provided, it loads from environment variables.
+//
+// Example:
+//	// Initialize with environment variables
+//	err := oauth.Init()
+//	if err != nil {
+//	    log.Fatal(err)
+//	}
+//
+//	// Initialize with custom configuration
+//	config := oauth.Config{
+//	    Provider:     "google",
+//	    ClientID:     "your-client-id",
+//	    ClientSecret: "your-client-secret",
+//	    RedirectURL:  "https://yourapp.com/callback",
+//	}
+//	err := oauth.Init(config)
 func Init(configs ...Config) error {
 	defaultOnce.Do(func() {
 		var cfg *Config
@@ -49,7 +77,27 @@ func Init(configs ...Config) error {
 	return defaultErr
 }
 
-// New creates a new OAuth service instance
+// New creates a new OAuth service instance with the provided configuration.
+// This function validates the configuration, creates the appropriate provider,
+// and sets up session and token storage.
+//
+// The returned service is ready to use for OAuth flows. It supports all
+// built-in providers (Google, GitHub, Apple, Twitter) and custom providers.
+//
+// Example:
+//	config := oauth.Config{
+//	    Provider:     "google",
+//	    ClientID:     "your-google-client-id",
+//	    ClientSecret: "your-google-client-secret",
+//	    RedirectURL:  "https://yourapp.com/callback",
+//	    Scopes:       "openid,email,profile",
+//	    PKCEEnabled:  true,
+//	}
+//	
+//	service, err := oauth.New(config)
+//	if err != nil {
+//	    return fmt.Errorf("failed to create OAuth service: %w", err)
+//	}
 func New(cfg Config) (*Service, error) {
 	// Validate configuration
 	if err := validateConfig(cfg); err != nil {
@@ -126,7 +174,24 @@ func New(cfg Config) (*Service, error) {
 	}, nil
 }
 
-// GetAuthURL generates an authorization URL
+// GetAuthURL generates an authorization URL for initiating the OAuth flow.
+// This method creates a secure state parameter for CSRF protection and
+// optionally generates a PKCE challenge for enhanced security.
+//
+// The generated URL should be used to redirect the user to the OAuth provider's
+// authorization page. After user consent, the provider will redirect back to
+// your configured redirect URL with an authorization code and state parameter.
+//
+// Returns the authorization URL and an error if generation fails.
+//
+// Example:
+//	authURL, err := service.GetAuthURL(ctx)
+//	if err != nil {
+//	    return fmt.Errorf("failed to generate auth URL: %w", err)
+//	}
+//	
+//	// Redirect user to authURL
+//	http.Redirect(w, r, authURL, http.StatusFound)
 func (s *Service) GetAuthURL(ctx context.Context) (string, error) {
 	if s == nil {
 		return "", ErrNotInitialized
@@ -165,7 +230,36 @@ func (s *Service) GetAuthURL(ctx context.Context) (string, error) {
 	return authURL, nil
 }
 
-// Exchange exchanges an authorization code for tokens
+// Exchange exchanges an authorization code for access and refresh tokens.
+// This method validates the state parameter to prevent CSRF attacks and
+// uses the PKCE verifier if PKCE was enabled during authorization.
+//
+// The method performs several security checks:
+//   - Validates the state parameter matches the stored session
+//   - Checks session hasn't expired
+//   - Immediately deletes the session to prevent replay attacks
+//   - Validates the provider matches if specified
+//
+// Returns a Token containing the access token, refresh token (if available),
+// expiration information, and any additional token metadata.
+//
+// Parameters:
+//   - ctx: Context for the operation
+//   - code: Authorization code received from the OAuth callback
+//   - state: State parameter received from the OAuth callback
+//
+// Example:
+//	// In your OAuth callback handler
+//	code := r.URL.Query().Get("code")
+//	state := r.URL.Query().Get("state")
+//	
+//	token, err := service.Exchange(ctx, code, state)
+//	if err != nil {
+//	    return fmt.Errorf("failed to exchange code: %w", err)
+//	}
+//	
+//	// Use token.AccessToken for API calls
+//	userInfo, err := service.GetUserInfo(ctx, token.AccessToken)
 func (s *Service) Exchange(ctx context.Context, code, state string) (*Token, error) {
 	if s == nil {
 		return nil, ErrNotInitialized
@@ -218,7 +312,28 @@ func (s *Service) Exchange(ctx context.Context, code, state string) (*Token, err
 	return token, nil
 }
 
-// RefreshToken refreshes an access token
+// RefreshToken refreshes an access token using the provided refresh token.
+// This method is useful for obtaining new access tokens when the current
+// token has expired, without requiring the user to re-authenticate.
+//
+// Not all OAuth providers support refresh tokens. This method will return
+// an error if the provider doesn't support token refresh.
+//
+// Parameters:
+//   - ctx: Context for the operation
+//   - refreshToken: The refresh token obtained from a previous token exchange
+//
+// Returns a new Token with updated access token and expiration time.
+//
+// Example:
+//	// Check if token is expired and refresh if needed
+//	if token.IsExpired() {
+//	    newToken, err := service.RefreshToken(ctx, token.RefreshToken)
+//	    if err != nil {
+//	        return fmt.Errorf("failed to refresh token: %w", err)
+//	    }
+//	    token = newToken
+//	}
 func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (*Token, error) {
 	if s == nil {
 		return nil, ErrNotInitialized
@@ -241,7 +356,28 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (*Token
 	return token, nil
 }
 
-// GetUserInfo retrieves user information
+// GetUserInfo retrieves user profile information using an access token.
+// This method calls the OAuth provider's user info endpoint to fetch
+// details about the authenticated user.
+//
+// The returned UserInfo struct contains standard fields like ID, email,
+// name, and profile picture, though availability depends on the provider
+// and requested scopes.
+//
+// Parameters:
+//   - ctx: Context for the operation  
+//   - accessToken: Valid access token from a successful OAuth exchange
+//
+// Returns UserInfo containing the user's profile data.
+//
+// Example:
+//	userInfo, err := service.GetUserInfo(ctx, token.AccessToken)
+//	if err != nil {
+//	    return fmt.Errorf("failed to get user info: %w", err)
+//	}
+//	
+//	fmt.Printf("User: %s (%s)\n", userInfo.Name, userInfo.Email)
+//	fmt.Printf("Provider: %s\n", userInfo.Provider)
 func (s *Service) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
 	if s == nil {
 		return nil, ErrNotInitialized
@@ -292,14 +428,37 @@ func (s *Service) Config() Config {
 	return s.config
 }
 
-// Reset clears the global instance (for testing)
+// Reset clears the global OAuth service instance, allowing for re-initialization.
+// This function is primarily intended for testing purposes to ensure a clean
+// state between test runs.
+//
+// After calling Reset(), the next call to Init() or OAuth() will create a
+// new service instance.
+//
+// Example:
+//	// In test teardown
+//	oauth.Reset()
+//	
+//	// Next OAuth() call will reinitialize
+//	service := oauth.OAuth()
 func Reset() {
 	defaultService = nil
 	defaultOnce = sync.Once{}
 	defaultErr = nil
 }
 
-// GetService returns the global OAuth service instance
+// GetService returns the global OAuth service instance.
+// If the service hasn't been initialized, this function will attempt
+// to initialize it using environment variables with the BEAVER_OAUTH_ prefix.
+//
+// Returns nil if initialization fails. Use Init() explicitly if you need
+// to handle initialization errors.
+//
+// Example:
+//	service := oauth.GetService()
+//	if service == nil {
+//	    log.Fatal("OAuth service not initialized")
+//	}
 func GetService() *Service {
 	if defaultService == nil {
 		Init() // Initialize with defaults if needed
@@ -307,7 +466,18 @@ func GetService() *Service {
 	return defaultService
 }
 
-// OAuth is an alias for GetService()
+// OAuth returns the global OAuth service instance.
+// This is a convenience function that's equivalent to GetService().
+//
+// If the service hasn't been initialized, this function will attempt
+// to initialize it using environment variables with the BEAVER_OAUTH_ prefix.
+//
+// Example:
+//	// Generate auth URL using global service
+//	authURL, err := oauth.OAuth().GetAuthURL(ctx)
+//	
+//	// Exchange code for token  
+//	token, err := oauth.OAuth().Exchange(ctx, code, state)
 func OAuth() *Service {
 	return GetService()
 }
@@ -315,15 +485,23 @@ func OAuth() *Service {
 // State generator implementations
 
 // SecureStateGenerator generates cryptographically secure state tokens
+// using the system's random number generator. This is the recommended
+// state generator for production use.
 type SecureStateGenerator struct{}
 
+// Generate creates a cryptographically secure random state token.
+// The token is 32 bytes of random data encoded as a hex string.
 func (g *SecureStateGenerator) Generate() (string, error) {
 	return krypto.GenerateSecureToken(32)
 }
 
-// UUIDStateGenerator generates UUID-based state tokens
+// UUIDStateGenerator generates UUID-based state tokens.
+// This generator creates UUID v4 compatible tokens which may be
+// more recognizable in logs but are less random than SecureStateGenerator.
 type UUIDStateGenerator struct{}
 
+// Generate creates a UUID v4 formatted state token.
+// Returns a string in the format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 func (g *UUIDStateGenerator) Generate() (string, error) {
 	// Simple UUID v4 implementation
 	b := make([]byte, 16)
@@ -335,13 +513,26 @@ func (g *UUIDStateGenerator) Generate() (string, error) {
 
 // Memory stores for sessions and tokens
 
-// MemorySessionStore implements SessionStore with in-memory storage
+// MemorySessionStore implements SessionStore with in-memory storage.
+// This is a simple implementation suitable for single-instance applications.
+// For production deployments with multiple instances, consider using a
+// distributed session store like Redis.
+//
+// The store includes automatic cleanup of expired sessions via a background
+// goroutine that runs every minute.
 type MemorySessionStore struct {
 	mu       sync.RWMutex
 	sessions map[string]*SessionData
 	ttl      time.Duration
 }
 
+// NewMemorySessionStore creates a new in-memory session store with the specified TTL.
+// The store will automatically clean up expired sessions every minute.
+//
+// Parameters:
+//   - ttl: Time-to-live for sessions before they're considered expired
+//
+// Returns a new MemorySessionStore instance with cleanup goroutine running.
 func NewMemorySessionStore(ttl time.Duration) *MemorySessionStore {
 	store := &MemorySessionStore{
 		sessions: make(map[string]*SessionData),
