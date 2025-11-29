@@ -1,5 +1,27 @@
-.idea
+# OS generated files
 .DS_Store
-temp
+**/.DS_Store
+
+# IDE
+.idea/
+.vscode/
+
+# Project specific
+temp/
 CLAUDE.md
-.claude
+.claude/
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+vendor/
+
+# Environment
+.env
+.env.local
+*.local
