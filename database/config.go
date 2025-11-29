@@ -18,7 +18,13 @@ type Config struct {
 	Password string `env:"DB_PASSWORD"`
 
 	// URL for direct connection string (overrides individual settings)
-	URL string `env:"DB_URL"`
+	// Supports both DATABASE_URL (cloud platform standard) and DB_URL (legacy)
+	// Priority: DATABASE_URL > DB_URL > individual fields
+	URL string `env:"DATABASE_URL"`
+
+	// LegacyURL provides backward compatibility for existing DB_URL users
+	// Deprecated: Use DATABASE_URL instead
+	LegacyURL string `env:"DB_URL"`
 
 	// Auth token for Turso/LibSQL
 	AuthToken string `env:"DB_AUTH_TOKEN"`

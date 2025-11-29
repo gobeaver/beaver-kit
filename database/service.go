@@ -8,6 +8,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -213,6 +214,75 @@ func Init(configs ...Config) error {
 	return defaultErr
 }
 
+// parseURLForDriver extracts the driver type from a database URL
+// Returns the appropriate driver name and DSN for sql.Open
+func parseURLForDriver(databaseURL string) (driver, dsn string) {
+	// PostgreSQL URLs
+	if strings.HasPrefix(databaseURL, "postgres://") ||
+		strings.HasPrefix(databaseURL, "postgresql://") {
+		return "pgx", databaseURL
+	}
+
+	// MySQL URLs - need to convert to Go MySQL driver format
+	if strings.HasPrefix(databaseURL, "mysql://") {
+		// MySQL URLs need special handling for go-sql-driver/mysql
+		// Format: mysql://user:pass@host:port/dbname?params
+		// Convert to: user:pass@tcp(host:port)/dbname?params
+		// Use url.Parse to properly handle special characters in password
+		parsed, err := url.Parse(databaseURL)
+		if err != nil {
+			// Fall back to raw URL if parsing fails
+			return "mysql", strings.TrimPrefix(databaseURL, "mysql://")
+		}
+
+		var userPass string
+		if parsed.User != nil {
+			password, hasPassword := parsed.User.Password()
+			if hasPassword {
+				userPass = fmt.Sprintf("%s:%s", parsed.User.Username(), password)
+			} else {
+				userPass = parsed.User.Username()
+			}
+		}
+
+		host := parsed.Host
+		if host == "" {
+			host = "localhost:3306"
+		} else if !strings.Contains(host, ":") {
+			host = host + ":3306" // Add default MySQL port
+		}
+
+		path := parsed.Path // includes leading /
+		query := parsed.RawQuery
+		if query != "" {
+			dsn = fmt.Sprintf("%s@tcp(%s)%s?%s", userPass, host, path, query)
+		} else {
+			dsn = fmt.Sprintf("%s@tcp(%s)%s", userPass, host, path)
+		}
+		return "mysql", dsn
+	}
+
+	// SQLite URLs
+	if strings.HasPrefix(databaseURL, "sqlite://") ||
+		strings.HasPrefix(databaseURL, "file:") {
+		if strings.HasPrefix(databaseURL, "sqlite://") {
+			dsn = strings.TrimPrefix(databaseURL, "sqlite://")
+		} else {
+			dsn = databaseURL
+		}
+		return "sqlite", dsn
+	}
+
+	// LibSQL/Turso URLs - only match libsql:// scheme
+	// For https:// Turso URLs, users should set DB_DRIVER=libsql explicitly
+	if strings.HasPrefix(databaseURL, "libsql://") {
+		return "libsql", databaseURL
+	}
+
+	// Default: assume it's a direct DSN for the configured driver
+	return "", databaseURL
+}
+
 // NewSQL creates a new SQL database connection with given config
 func NewSQL(cfg Config) (*sql.DB, error) {
 	// Validation
@@ -223,31 +293,80 @@ func NewSQL(cfg Config) (*sql.DB, error) {
 	var dsn string
 	var driverName string
 
-	switch cfg.Driver {
-	case "mysql":
-		driverName = "mysql"
-		dsn = buildMySQLDSN(cfg)
+	// Resolve URL with fallback: DATABASE_URL > DB_URL (legacy)
+	effectiveURL := cfg.URL
+	if effectiveURL == "" && cfg.LegacyURL != "" {
+		effectiveURL = cfg.LegacyURL
+	}
 
-	case "postgres", "postgresql":
-		driverName = "pgx" // Using pgx for better performance
-		dsn = buildPostgresDSN(cfg)
-
-	case "sqlite", "sqlite3":
-		driverName = "sqlite"
-		dsn = cfg.Database
-		if dsn == "" {
-			dsn = "file:sqlite.db?cache=shared&mode=rwc"
+	// Priority 1: Use URL if provided (DATABASE_URL or DB_URL)
+	if effectiveURL != "" {
+		parsedDriver, parsedDSN := parseURLForDriver(effectiveURL)
+		if parsedDriver != "" {
+			driverName = parsedDriver
+			dsn = parsedDSN
+			// For LibSQL/Turso, append auth token if provided
+			if driverName == "libsql" && cfg.AuthToken != "" && !strings.Contains(dsn, "authToken=") {
+				if strings.Contains(dsn, "?") {
+					dsn = fmt.Sprintf("%s&authToken=%s", dsn, cfg.AuthToken)
+				} else {
+					dsn = fmt.Sprintf("%s?authToken=%s", dsn, cfg.AuthToken)
+				}
+			}
+		} else {
+			// If we couldn't parse the driver, fall back to configured driver
+			switch cfg.Driver {
+			case "mysql":
+				driverName = "mysql"
+				dsn = effectiveURL
+			case "postgres", "postgresql":
+				driverName = "pgx"
+				dsn = effectiveURL
+			case "sqlite", "sqlite3":
+				driverName = "sqlite"
+				dsn = effectiveURL
+			case "libsql", "turso":
+				driverName = "libsql"
+				dsn = effectiveURL
+			default:
+				return nil, fmt.Errorf("%w: unable to determine driver from URL", ErrInvalidDriver)
+			}
 		}
+	} else {
+		// Priority 2: Build DSN from separate fields
+		switch cfg.Driver {
+		case "mysql":
+			driverName = "mysql"
+			dsn = buildMySQLDSN(cfg)
 
-	case "libsql", "turso":
-		driverName = "libsql"
-		dsn = cfg.URL
-		if cfg.AuthToken != "" {
-			dsn = fmt.Sprintf("%s?authToken=%s", cfg.URL, cfg.AuthToken)
+		case "postgres", "postgresql":
+			driverName = "pgx" // Using pgx for better performance
+			dsn = buildPostgresDSN(cfg)
+
+		case "sqlite", "sqlite3":
+			driverName = "sqlite"
+			dsn = cfg.Database
+			if dsn == "" {
+				dsn = "file:sqlite.db?cache=shared&mode=rwc"
+			}
+
+		case "libsql", "turso":
+			// LibSQL/Turso requires a URL - this should be caught by validation,
+			// but we handle it explicitly here for safety
+			if cfg.Host != "" {
+				// Build URL from host if provided
+				driverName = "libsql"
+				dsn = fmt.Sprintf("libsql://%s", cfg.Host)
+				if cfg.AuthToken != "" {
+					dsn = fmt.Sprintf("%s?authToken=%s", dsn, cfg.AuthToken)
+				}
+			} else {
+				return nil, fmt.Errorf("%w: libsql/turso requires DATABASE_URL or DB_HOST to be set", ErrInvalidConfig)
+			}
+
+		default:
+			return nil, fmt.Errorf("%w: %s", ErrInvalidDriver, cfg.Driver)
 		}
-
-	default:
-		return nil, fmt.Errorf("%w: %s", ErrInvalidDriver, cfg.Driver)
 	}
 
 	// Open connection
@@ -467,13 +586,16 @@ func validateConfig(cfg Config) error {
 		cfg.Driver = "sqlite3"
 	}
 
-	// For turso/libsql, URL is required
-	if (cfg.Driver == "libsql" || cfg.Driver == "turso") && cfg.URL == "" {
-		return errors.New("turso requires URL to be set")
+	// Check if any URL is provided (DATABASE_URL or legacy DB_URL)
+	hasURL := cfg.URL != "" || cfg.LegacyURL != ""
+
+	// For turso/libsql, URL or Host is required
+	if (cfg.Driver == "libsql" || cfg.Driver == "turso") && !hasURL && cfg.Host == "" {
+		return errors.New("libsql/turso requires DATABASE_URL, DB_URL, or DB_HOST to be set")
 	}
 
 	// For other drivers, validate connection details
-	if cfg.Driver != "sqlite3" && cfg.Driver != "libsql" && cfg.Driver != "turso" && cfg.URL == "" {
+	if cfg.Driver != "sqlite3" && cfg.Driver != "libsql" && cfg.Driver != "turso" && !hasURL {
 		if cfg.Host == "" || cfg.Database == "" {
 			return errors.New("database connection details required")
 		}
@@ -483,10 +605,6 @@ func validateConfig(cfg Config) error {
 }
 
 func buildMySQLDSN(cfg Config) string {
-	if cfg.URL != "" {
-		return cfg.URL
-	}
-
 	port := cfg.Port
 	if port == "" {
 		port = "3306"
@@ -515,10 +633,6 @@ func buildMySQLDSN(cfg Config) string {
 }
 
 func buildPostgresDSN(cfg Config) string {
-	if cfg.URL != "" {
-		return cfg.URL
-	}
-
 	port := cfg.Port
 	if port == "" {
 		port = "5432"

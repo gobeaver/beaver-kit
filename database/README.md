@@ -96,22 +96,36 @@ if err := database.InitWithGORM(); err != nil {
 ### Environment Variables
 
 ```bash
-# Database driver: postgres, mysql, sqlite, turso, libsql
-BEAVER_DB_DRIVER=postgres
+# Primary Method: DATABASE_URL (recommended, works with all cloud platforms)
+BEAVER_DATABASE_URL=postgres://user:pass@localhost:5432/myapp
 
-# Connection details (for traditional databases)
+# Legacy: DB_URL is also supported for backward compatibility
+# Priority: DATABASE_URL > DB_URL > individual fields
+BEAVER_DB_URL=postgres://user:pass@localhost:5432/myapp
+
+# The driver is automatically detected from the URL:
+# - postgres:// or postgresql:// → PostgreSQL
+# - mysql:// → MySQL
+# - sqlite:// or file: → SQLite
+# - libsql:// or https:// → Turso/LibSQL
+
+# Examples:
+BEAVER_DATABASE_URL=postgres://user:pass@localhost:5432/myapp?sslmode=require
+BEAVER_DATABASE_URL=mysql://user:pass@localhost:3306/myapp
+BEAVER_DATABASE_URL=sqlite:///path/to/database.db
+BEAVER_DATABASE_URL=libsql://your-database.turso.io
+
+# For Turso/LibSQL with auth token
+BEAVER_DATABASE_URL=libsql://your-database.turso.io
+BEAVER_DB_AUTH_TOKEN=your-auth-token
+
+# Alternative Method: Separate fields (for legacy/enterprise compatibility)
+BEAVER_DB_DRIVER=postgres
 BEAVER_DB_HOST=localhost
 BEAVER_DB_PORT=5432
 BEAVER_DB_DATABASE=myapp
 BEAVER_DB_USERNAME=user
 BEAVER_DB_PASSWORD=secret
-
-# Or use a connection URL (overrides individual settings)
-BEAVER_DB_URL=postgres://user:pass@localhost:5432/myapp
-
-# For Turso/LibSQL
-BEAVER_DB_URL=libsql://your-database.turso.io
-BEAVER_DB_AUTH_TOKEN=your-auth-token
 
 # Connection pool settings
 BEAVER_DB_MAX_OPEN_CONNS=25
@@ -245,9 +259,47 @@ if err == database.ErrGORMNotEnabled {
 
 ## Examples
 
-### PostgreSQL with SSL
+### Using DATABASE_URL (Recommended)
 
 ```bash
+# PostgreSQL with SSL
+BEAVER_DATABASE_URL=postgres://appuser:secret@prod-db.example.com:5432/myapp?sslmode=require
+
+# MySQL with connection parameters
+BEAVER_DATABASE_URL=mysql://root:secret@localhost:3306/myapp?timeout=10s&readTimeout=30s
+
+# SQLite file database
+BEAVER_DATABASE_URL=sqlite:///path/to/database.db
+
+# Turso cloud database
+BEAVER_DATABASE_URL=libsql://my-db.turso.io
+BEAVER_DB_AUTH_TOKEN=your-auth-token
+```
+
+### Multi-Instance Configuration
+
+```bash
+# Primary database
+PRIMARY_DATABASE_URL=postgres://user:pass@primary.db.example.com/app
+
+# Read replica
+REPLICA_DATABASE_URL=postgres://user:pass@replica.db.example.com/app
+
+# Analytics database
+ANALYTICS_DATABASE_URL=postgres://user:pass@analytics.db.example.com/metrics
+```
+
+```go
+// Connect to multiple databases
+primaryDB, err := database.WithPrefix("PRIMARY_").Connect()
+replicaDB, err := database.WithPrefix("REPLICA_").Connect()
+analyticsDB, err := database.WithPrefix("ANALYTICS_").Connect()
+```
+
+### Legacy Configuration (Using Separate Fields)
+
+```bash
+# PostgreSQL with separate fields
 BEAVER_DB_DRIVER=postgres
 BEAVER_DB_HOST=prod-db.example.com
 BEAVER_DB_PORT=5432
@@ -255,32 +307,6 @@ BEAVER_DB_DATABASE=myapp
 BEAVER_DB_USERNAME=appuser
 BEAVER_DB_PASSWORD=secret
 BEAVER_DB_SSL_MODE=require
-```
-
-### MySQL with Custom Parameters
-
-```bash
-BEAVER_DB_DRIVER=mysql
-BEAVER_DB_HOST=localhost
-BEAVER_DB_DATABASE=myapp
-BEAVER_DB_USERNAME=root
-BEAVER_DB_PASSWORD=secret
-BEAVER_DB_PARAMS="timeout=10s&readTimeout=30s"
-```
-
-### SQLite File Database
-
-```bash
-BEAVER_DB_DRIVER=sqlite
-BEAVER_DB_DATABASE=/path/to/database.db
-```
-
-### Turso Cloud Database
-
-```bash
-BEAVER_DB_DRIVER=turso
-BEAVER_DB_URL=libsql://my-db.turso.io
-BEAVER_DB_AUTH_TOKEN=your-auth-token
 ```
 
 ### Fluent Interface Examples
