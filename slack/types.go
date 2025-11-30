@@ -27,18 +27,18 @@ type BlockElement struct {
 
 // Attachment represents a Slack message attachment
 type Attachment struct {
-	Color      string       `json:"color,omitempty"`
-	Fallback   string       `json:"fallback,omitempty"`
-	Title      string       `json:"title,omitempty"`
-	TitleLink  string       `json:"title_link,omitempty"`
-	Text       string       `json:"text,omitempty"`
-	Pretext    string       `json:"pretext,omitempty"`
-	Footer     string       `json:"footer,omitempty"`
-	FooterIcon string       `json:"footer_icon,omitempty"`
-	Timestamp  int64        `json:"ts,omitempty"`
-	Fields     []Field      `json:"fields,omitempty"`
-	MrkdwnIn   []string     `json:"mrkdwn_in,omitempty"`
-	Blocks     []Block      `json:"blocks,omitempty"`
+	Color      string   `json:"color,omitempty"`
+	Fallback   string   `json:"fallback,omitempty"`
+	Title      string   `json:"title,omitempty"`
+	TitleLink  string   `json:"title_link,omitempty"`
+	Text       string   `json:"text,omitempty"`
+	Pretext    string   `json:"pretext,omitempty"`
+	Footer     string   `json:"footer,omitempty"`
+	FooterIcon string   `json:"footer_icon,omitempty"`
+	Timestamp  int64    `json:"ts,omitempty"`
+	Fields     []Field  `json:"fields,omitempty"`
+	MrkdwnIn   []string `json:"mrkdwn_in,omitempty"`
+	Blocks     []Block  `json:"blocks,omitempty"`
 }
 
 // Field represents a field in an attachment

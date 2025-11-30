@@ -14,29 +14,29 @@ type TokenManager interface {
 	CacheToken(ctx context.Context, userID, provider string, token *Token) error
 	GetCachedToken(ctx context.Context, userID, provider string) (*Token, error)
 	DeleteToken(ctx context.Context, userID, provider string) error
-	
+
 	// Advanced operations
 	RefreshIfNeeded(ctx context.Context, userID, provider string) (*Token, error)
 	RevokeToken(ctx context.Context, userID, provider string) error
 	GetAllUserTokens(ctx context.Context, userID string) (map[string]*Token, error)
-	
+
 	// Bulk operations
 	RefreshExpiredTokens(ctx context.Context) error
 	CleanupExpiredTokens(ctx context.Context) error
-	
+
 	// Statistics
 	GetTokenStats() *TokenStats
 }
 
 // TokenStats provides statistics about cached tokens
 type TokenStats struct {
-	TotalTokens      int
-	ActiveTokens     int
-	ExpiredTokens    int
+	TotalTokens       int
+	ActiveTokens      int
+	ExpiredTokens     int
 	RefreshableTokens int
-	ProviderCounts   map[string]int
-	LastCleanup      time.Time
-	LastRefresh      time.Time
+	ProviderCounts    map[string]int
+	LastCleanup       time.Time
+	LastRefresh       time.Time
 }
 
 // AdvancedTokenManager implements TokenManager with advanced features
@@ -45,13 +45,13 @@ type AdvancedTokenManager struct {
 	providerService *MultiProviderService
 	encryptor       TokenEncryptor
 	mu              sync.RWMutex
-	
+
 	// Configuration
-	autoRefresh        bool
-	refreshThreshold   time.Duration
-	cleanupInterval    time.Duration
-	maxTokensPerUser   int
-	
+	autoRefresh      bool
+	refreshThreshold time.Duration
+	cleanupInterval  time.Duration
+	maxTokensPerUser int
+
 	// Internal state
 	tokenMetadata map[string]*TokenMetadata
 	stats         *TokenStats
@@ -78,13 +78,13 @@ type TokenEncryptor interface {
 
 // TokenManagerConfig configures the advanced token manager
 type TokenManagerConfig struct {
-	Store              TokenStore
-	ProviderService    *MultiProviderService
-	Encryptor          TokenEncryptor
-	AutoRefresh        bool
-	RefreshThreshold   time.Duration
-	CleanupInterval    time.Duration
-	MaxTokensPerUser   int
+	Store            TokenStore
+	ProviderService  *MultiProviderService
+	Encryptor        TokenEncryptor
+	AutoRefresh      bool
+	RefreshThreshold time.Duration
+	CleanupInterval  time.Duration
+	MaxTokensPerUser int
 }
 
 // NewAdvancedTokenManager creates a new advanced token manager
@@ -98,7 +98,7 @@ func NewAdvancedTokenManager(config TokenManagerConfig) *AdvancedTokenManager {
 	if config.MaxTokensPerUser == 0 {
 		config.MaxTokensPerUser = 10 // Maximum 10 providers per user
 	}
-	
+
 	tm := &AdvancedTokenManager{
 		store:            config.Store,
 		providerService:  config.ProviderService,
@@ -114,12 +114,12 @@ func NewAdvancedTokenManager(config TokenManagerConfig) *AdvancedTokenManager {
 		},
 		stopCh: make(chan struct{}),
 	}
-	
+
 	// Start background tasks if auto-refresh is enabled
 	if config.AutoRefresh {
 		tm.startBackgroundTasks()
 	}
-	
+
 	return tm
 }
 
@@ -127,7 +127,7 @@ func NewAdvancedTokenManager(config TokenManagerConfig) *AdvancedTokenManager {
 func (tm *AdvancedTokenManager) CacheToken(ctx context.Context, userID, provider string, token *Token) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
-	
+
 	// Check user token limit
 	userTokens := 0
 	for key := range tm.tokenMetadata {
@@ -138,16 +138,16 @@ func (tm *AdvancedTokenManager) CacheToken(ctx context.Context, userID, provider
 	if userTokens >= tm.maxTokensPerUser {
 		return fmt.Errorf("user %s has reached maximum token limit (%d)", userID, tm.maxTokensPerUser)
 	}
-	
+
 	key := tm.tokenKey(userID, provider)
-	
+
 	// Encrypt token if encryptor is configured
 	var dataToStore []byte
 	tokenData, err := json.Marshal(token)
 	if err != nil {
 		return fmt.Errorf("failed to marshal token: %w", err)
 	}
-	
+
 	if tm.encryptor != nil {
 		dataToStore, err = tm.encryptor.Encrypt(tokenData)
 		if err != nil {
@@ -156,13 +156,13 @@ func (tm *AdvancedTokenManager) CacheToken(ctx context.Context, userID, provider
 	} else {
 		dataToStore = tokenData
 	}
-	
+
 	// Create wrapper for encrypted storage
 	wrapper := &encryptedTokenWrapper{
 		Data:      dataToStore,
 		Encrypted: tm.encryptor != nil,
 	}
-	
+
 	// Store the token
 	if err := tm.store.Store(ctx, key, &Token{
 		AccessToken: string(wrapper.Data), // Store as string for compatibility
@@ -170,7 +170,7 @@ func (tm *AdvancedTokenManager) CacheToken(ctx context.Context, userID, provider
 	}); err != nil {
 		return fmt.Errorf("failed to store token: %w", err)
 	}
-	
+
 	// Update metadata
 	tm.tokenMetadata[key] = &TokenMetadata{
 		UserID:       userID,
@@ -180,10 +180,10 @@ func (tm *AdvancedTokenManager) CacheToken(ctx context.Context, userID, provider
 		AccessCount:  0,
 		RefreshCount: 0,
 	}
-	
+
 	// Update stats
 	tm.updateStats()
-	
+
 	return nil
 }
 
@@ -191,15 +191,15 @@ func (tm *AdvancedTokenManager) CacheToken(ctx context.Context, userID, provider
 func (tm *AdvancedTokenManager) GetCachedToken(ctx context.Context, userID, provider string) (*Token, error) {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
-	
+
 	key := tm.tokenKey(userID, provider)
-	
+
 	// Retrieve the token
 	storedToken, err := tm.store.Retrieve(ctx, key)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Decrypt if necessary
 	var token Token
 	if storedToken.TokenType == "encrypted:true" && tm.encryptor != nil {
@@ -217,13 +217,13 @@ func (tm *AdvancedTokenManager) GetCachedToken(ctx context.Context, userID, prov
 			token = *storedToken
 		}
 	}
-	
+
 	// Update metadata
 	if metadata, exists := tm.tokenMetadata[key]; exists {
 		metadata.LastAccessed = time.Now()
 		metadata.AccessCount++
 	}
-	
+
 	return &token, nil
 }
 
@@ -231,20 +231,20 @@ func (tm *AdvancedTokenManager) GetCachedToken(ctx context.Context, userID, prov
 func (tm *AdvancedTokenManager) DeleteToken(ctx context.Context, userID, provider string) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
-	
+
 	key := tm.tokenKey(userID, provider)
-	
+
 	// Delete from store
 	if err := tm.store.Delete(ctx, key); err != nil {
 		return err
 	}
-	
+
 	// Delete metadata
 	delete(tm.tokenMetadata, key)
-	
+
 	// Update stats
 	tm.updateStats()
-	
+
 	return nil
 }
 
@@ -255,37 +255,37 @@ func (tm *AdvancedTokenManager) RefreshIfNeeded(ctx context.Context, userID, pro
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Check if token needs refresh
 	if !tm.needsRefresh(token) {
 		return token, nil
 	}
-	
+
 	// Get the provider
 	if tm.providerService == nil {
 		return nil, fmt.Errorf("provider service not configured for automatic refresh")
 	}
-	
+
 	prov, err := tm.providerService.GetProvider(provider)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get provider: %w", err)
 	}
-	
+
 	if !prov.SupportsRefresh() {
 		return token, nil // Return existing token if refresh not supported
 	}
-	
+
 	// Refresh the token
 	newToken, err := prov.RefreshToken(ctx, token.RefreshToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to refresh token: %w", err)
 	}
-	
+
 	// Cache the new token
 	if err := tm.CacheToken(ctx, userID, provider, newToken); err != nil {
 		return nil, fmt.Errorf("failed to cache refreshed token: %w", err)
 	}
-	
+
 	// Update metadata
 	tm.mu.Lock()
 	key := tm.tokenKey(userID, provider)
@@ -294,7 +294,7 @@ func (tm *AdvancedTokenManager) RefreshIfNeeded(ctx context.Context, userID, pro
 		metadata.LastRefresh = time.Now()
 	}
 	tm.mu.Unlock()
-	
+
 	return newToken, nil
 }
 
@@ -305,7 +305,7 @@ func (tm *AdvancedTokenManager) RevokeToken(ctx context.Context, userID, provide
 	if err != nil {
 		return fmt.Errorf("failed to get token for revocation: %w", err)
 	}
-	
+
 	// Revoke with provider if service is configured
 	if tm.providerService != nil {
 		if err := tm.providerService.RevokeToken(ctx, provider, token.AccessToken); err != nil {
@@ -313,7 +313,7 @@ func (tm *AdvancedTokenManager) RevokeToken(ctx context.Context, userID, provide
 			// Some providers may not support revocation
 		}
 	}
-	
+
 	// Remove from cache
 	return tm.DeleteToken(ctx, userID, provider)
 }
@@ -329,7 +329,7 @@ func (tm *AdvancedTokenManager) GetAllUserTokens(ctx context.Context, userID str
 		}
 	}
 	tm.mu.RUnlock()
-	
+
 	// Now get tokens without holding the lock
 	tokens := make(map[string]*Token)
 	for _, provider := range providers {
@@ -338,7 +338,7 @@ func (tm *AdvancedTokenManager) GetAllUserTokens(ctx context.Context, userID str
 			tokens[provider] = token
 		}
 	}
-	
+
 	return tokens, nil
 }
 
@@ -353,30 +353,30 @@ func (tm *AdvancedTokenManager) RefreshExpiredTokens(ctx context.Context) error 
 		})
 	}
 	tm.mu.RUnlock()
-	
+
 	var errors []error
 	for _, item := range tokenList {
 		token, err := tm.GetCachedToken(ctx, item.userID, item.provider)
 		if err != nil {
 			continue
 		}
-		
+
 		if tm.needsRefresh(token) {
 			if _, err := tm.RefreshIfNeeded(ctx, item.userID, item.provider); err != nil {
-				errors = append(errors, fmt.Errorf("failed to refresh token for %s/%s: %w", 
+				errors = append(errors, fmt.Errorf("failed to refresh token for %s/%s: %w",
 					item.userID, item.provider, err))
 			}
 		}
 	}
-	
+
 	tm.mu.Lock()
 	tm.stats.LastRefresh = time.Now()
 	tm.mu.Unlock()
-	
+
 	if len(errors) > 0 {
 		return fmt.Errorf("refresh errors: %v", errors)
 	}
-	
+
 	return nil
 }
 
@@ -384,36 +384,36 @@ func (tm *AdvancedTokenManager) RefreshExpiredTokens(ctx context.Context) error 
 func (tm *AdvancedTokenManager) CleanupExpiredTokens(ctx context.Context) error {
 	tm.mu.Lock()
 	defer tm.mu.Unlock()
-	
+
 	toDelete := []string{}
-	
+
 	for key, metadata := range tm.tokenMetadata {
 		token, err := tm.store.Retrieve(ctx, key)
 		if err != nil {
 			toDelete = append(toDelete, key)
 			continue
 		}
-		
+
 		// Check if token is expired and can't be refreshed
 		if token.IsExpired() && token.RefreshToken == "" {
 			toDelete = append(toDelete, key)
 		}
-		
+
 		// Remove tokens not accessed in a long time (30 days)
 		if time.Since(metadata.LastAccessed) > 30*24*time.Hour {
 			toDelete = append(toDelete, key)
 		}
 	}
-	
+
 	// Delete expired tokens
 	for _, key := range toDelete {
 		tm.store.Delete(ctx, key)
 		delete(tm.tokenMetadata, key)
 	}
-	
+
 	tm.stats.LastCleanup = time.Now()
 	tm.updateStats()
-	
+
 	return nil
 }
 
@@ -421,7 +421,7 @@ func (tm *AdvancedTokenManager) CleanupExpiredTokens(ctx context.Context) error 
 func (tm *AdvancedTokenManager) GetTokenStats() *TokenStats {
 	tm.mu.RLock()
 	defer tm.mu.RUnlock()
-	
+
 	// Create a copy of stats
 	statsCopy := &TokenStats{
 		TotalTokens:       tm.stats.TotalTokens,
@@ -432,11 +432,11 @@ func (tm *AdvancedTokenManager) GetTokenStats() *TokenStats {
 		LastRefresh:       tm.stats.LastRefresh,
 		ProviderCounts:    make(map[string]int),
 	}
-	
+
 	for k, v := range tm.stats.ProviderCounts {
 		statsCopy.ProviderCounts[k] = v
 	}
-	
+
 	return statsCopy
 }
 
@@ -456,40 +456,40 @@ func (tm *AdvancedTokenManager) needsRefresh(token *Token) bool {
 	if token.RefreshToken == "" {
 		return false // Can't refresh without refresh token
 	}
-	
+
 	if token.ExpiresAt.IsZero() {
 		return false // No expiration set
 	}
-	
+
 	// Refresh if token expires within threshold
 	return time.Until(token.ExpiresAt) < tm.refreshThreshold
 }
 
 func (tm *AdvancedTokenManager) updateStats() {
 	tm.stats.TotalTokens = len(tm.tokenMetadata)
-	
+
 	activeCount := 0
 	expiredCount := 0
 	refreshableCount := 0
 	providerCounts := make(map[string]int)
-	
+
 	ctx := context.Background()
 	for key, metadata := range tm.tokenMetadata {
 		providerCounts[metadata.Provider]++
-		
+
 		if token, err := tm.store.Retrieve(ctx, key); err == nil {
 			if !token.IsExpired() {
 				activeCount++
 			} else {
 				expiredCount++
 			}
-			
+
 			if token.RefreshToken != "" {
 				refreshableCount++
 			}
 		}
 	}
-	
+
 	tm.stats.ActiveTokens = activeCount
 	tm.stats.ExpiredTokens = expiredCount
 	tm.stats.RefreshableTokens = refreshableCount
@@ -503,7 +503,7 @@ func (tm *AdvancedTokenManager) startBackgroundTasks() {
 		defer tm.wg.Done()
 		ticker := time.NewTicker(1 * time.Minute)
 		defer ticker.Stop()
-		
+
 		for {
 			select {
 			case <-ticker.C:
@@ -514,14 +514,14 @@ func (tm *AdvancedTokenManager) startBackgroundTasks() {
 			}
 		}
 	}()
-	
+
 	// Cleanup task
 	tm.wg.Add(1)
 	go func() {
 		defer tm.wg.Done()
 		ticker := time.NewTicker(tm.cleanupInterval)
 		defer ticker.Stop()
-		
+
 		for {
 			select {
 			case <-ticker.C:

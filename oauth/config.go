@@ -54,8 +54,8 @@ type Config struct {
 	UserInfoURL string `env:"OAUTH_USERINFO_URL"`
 
 	// Provider-specific configurations
-	AppleTeamID    string `env:"OAUTH_APPLE_TEAM_ID"`
-	AppleKeyID     string `env:"OAUTH_APPLE_KEY_ID"`
+	AppleTeamID     string `env:"OAUTH_APPLE_TEAM_ID"`
+	AppleKeyID      string `env:"OAUTH_APPLE_KEY_ID"`
 	ApplePrivateKey string `env:"OAUTH_APPLE_PRIVATE_KEY"`
 
 	// Twitter API version (1.1 or 2)

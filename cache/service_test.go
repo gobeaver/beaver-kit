@@ -12,9 +12,9 @@ func TestCacheService(t *testing.T) {
 	// Test with memory driver
 	t.Run("MemoryDriver", func(t *testing.T) {
 		cfg := cache.Config{
-			Driver:    "memory",
-			MaxKeys:   100,
-			MaxSize:   1024 * 1024, // 1MB
+			Driver:     "memory",
+			MaxKeys:    100,
+			MaxSize:    1024 * 1024, // 1MB
 			DefaultTTL: "5m",
 		}
 
@@ -30,10 +30,10 @@ func TestCacheService(t *testing.T) {
 	// Test with Redis driver (skip if Redis not available)
 	t.Run("RedisDriver", func(t *testing.T) {
 		cfg := cache.Config{
-			Driver:   "redis",
-			Host:     "localhost",
-			Port:     "6379",
-			Database: 1,
+			Driver:    "redis",
+			Host:      "localhost",
+			Port:      "6379",
+			Database:  1,
 			KeyPrefix: "test:",
 		}
 

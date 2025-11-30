@@ -140,7 +140,7 @@
 //
 //	messages := []string{
 //	    "Message 1",
-//	    "Message 2", 
+//	    "Message 2",
 //	    "Message 3",
 //	}
 //
@@ -189,7 +189,7 @@
 //	// Get service statistics
 //	stats := service.GetStats()
 //	fmt.Printf("Messages sent: %d\n", stats.MessagesSent)
-//	fmt.Printf("Success rate: %.2f%%\n", 
+//	fmt.Printf("Success rate: %.2f%%\n",
 //	    float64(stats.MessagesSucceeded)/float64(stats.MessagesSent)*100)
 //
 // # Health Checks
@@ -245,13 +245,13 @@
 //	// Background job notifications
 //	func processJob(job Job) error {
 //	    slack.Slack().SendInfo(fmt.Sprintf("Starting job: %s", job.ID))
-//	    
+//
 //	    err := job.Process()
 //	    if err != nil {
 //	        slack.Slack().SendError(fmt.Errorf("Job %s failed: %w", job.ID, err))
 //	        return err
 //	    }
-//	    
+//
 //	    slack.Slack().SendSuccess(fmt.Sprintf("Job %s completed successfully", job.ID))
 //	    return nil
 //	}

@@ -18,15 +18,15 @@ const (
 
 // CircuitBreaker protects against cascading failures
 type CircuitBreaker struct {
-	maxFailures    int
-	timeout        time.Duration
-	maxRequests    int
-	
-	state          CircuitState
-	failures       int
-	successCount   int
-	lastFailTime   time.Time
-	mu             sync.RWMutex
+	maxFailures int
+	timeout     time.Duration
+	maxRequests int
+
+	state        CircuitState
+	failures     int
+	successCount int
+	lastFailTime time.Time
+	mu           sync.RWMutex
 }
 
 // NewCircuitBreaker creates a new circuit breaker
@@ -63,7 +63,7 @@ func (cb *CircuitBreaker) Allow() error {
 			return ErrCircuitOpen
 		}
 	}
-	
+
 	return nil
 }
 
@@ -136,7 +136,7 @@ func (cb *CircuitBreaker) Execute(ctx context.Context, fn func() error) error {
 
 // CircuitBreakerError represents a circuit breaker error
 type CircuitBreakerError struct {
-	State CircuitState
+	State   CircuitState
 	Message string
 }
 

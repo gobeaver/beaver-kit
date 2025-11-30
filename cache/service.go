@@ -53,7 +53,6 @@ func (b *Builder) New() (Cache, error) {
 	return New(*cfg)
 }
 
-
 // Init initializes the global cache instance with optional config
 func Init(configs ...Config) error {
 	defaultOnce.Do(func() {

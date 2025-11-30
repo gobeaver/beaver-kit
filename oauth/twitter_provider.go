@@ -82,11 +82,11 @@ func (t *TwitterProvider) SetHTTPClient(client HTTPClient) {
 // but uses PKCE internally for public clients
 func (t *TwitterProvider) GetAuthURL(state string, pkce *PKCEChallenge) string {
 	params := url.Values{
-		"client_id":     {t.config.ClientID},
-		"redirect_uri":  {t.config.RedirectURL},
-		"scope":         {strings.Join(t.config.Scopes, " ")},
-		"state":         {state},
-		"response_type": {"code"},
+		"client_id":             {t.config.ClientID},
+		"redirect_uri":          {t.config.RedirectURL},
+		"scope":                 {strings.Join(t.config.Scopes, " ")},
+		"state":                 {state},
+		"response_type":         {"code"},
 		"code_challenge_method": {"S256"}, // Twitter requires PKCE for public clients
 	}
 
@@ -147,12 +147,12 @@ func (t *TwitterProvider) Exchange(ctx context.Context, code string, pkce *PKCEC
 	}
 
 	var tokenResp struct {
-		AccessToken  string `json:"access_token"`
-		TokenType    string `json:"token_type"`
-		RefreshToken string `json:"refresh_token"`
-		ExpiresIn    int    `json:"expires_in"`
-		Scope        string `json:"scope"`
-		Error        string `json:"error"`
+		AccessToken      string `json:"access_token"`
+		TokenType        string `json:"token_type"`
+		RefreshToken     string `json:"refresh_token"`
+		ExpiresIn        int    `json:"expires_in"`
+		Scope            string `json:"scope"`
+		Error            string `json:"error"`
 		ErrorDescription string `json:"error_description"`
 	}
 
@@ -227,11 +227,11 @@ func (t *TwitterProvider) RefreshToken(ctx context.Context, refreshToken string)
 	}
 
 	var tokenResp struct {
-		AccessToken  string `json:"access_token"`
-		TokenType    string `json:"token_type"`
-		ExpiresIn    int    `json:"expires_in"`
-		Scope        string `json:"scope"`
-		Error        string `json:"error"`
+		AccessToken      string `json:"access_token"`
+		TokenType        string `json:"token_type"`
+		ExpiresIn        int    `json:"expires_in"`
+		Scope            string `json:"scope"`
+		Error            string `json:"error"`
 		ErrorDescription string `json:"error_description"`
 	}
 
@@ -328,7 +328,7 @@ func (t *TwitterProvider) GetUserInfo(ctx context.Context, accessToken string) (
 func (t *TwitterProvider) RevokeToken(ctx context.Context, token string) error {
 	// Twitter's revoke endpoint
 	revokeURL := "https://api.twitter.com/2/oauth2/revoke"
-	
+
 	data := url.Values{
 		"client_id": {t.config.ClientID},
 		"token":     {token},

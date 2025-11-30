@@ -67,7 +67,7 @@ func (g *GoogleProvider) GetAuthURL(state string, pkce *PKCEChallenge) string {
 		"state":         {state},
 		"response_type": {"code"},
 		"access_type":   {"offline"}, // Request refresh token
-		"prompt":        {"consent"},  // Force consent to get refresh token
+		"prompt":        {"consent"}, // Force consent to get refresh token
 	}
 
 	// Add PKCE parameters if provided
@@ -124,13 +124,13 @@ func (g *GoogleProvider) Exchange(ctx context.Context, code string, pkce *PKCECh
 	}
 
 	var tokenResp struct {
-		AccessToken  string `json:"access_token"`
-		TokenType    string `json:"token_type"`
-		RefreshToken string `json:"refresh_token"`
-		ExpiresIn    int    `json:"expires_in"`
-		IDToken      string `json:"id_token"`
-		Scope        string `json:"scope"`
-		Error        string `json:"error"`
+		AccessToken      string `json:"access_token"`
+		TokenType        string `json:"token_type"`
+		RefreshToken     string `json:"refresh_token"`
+		ExpiresIn        int    `json:"expires_in"`
+		IDToken          string `json:"id_token"`
+		Scope            string `json:"scope"`
+		Error            string `json:"error"`
 		ErrorDescription string `json:"error_description"`
 	}
 
@@ -202,12 +202,12 @@ func (g *GoogleProvider) RefreshToken(ctx context.Context, refreshToken string) 
 	}
 
 	var tokenResp struct {
-		AccessToken  string `json:"access_token"`
-		TokenType    string `json:"token_type"`
-		ExpiresIn    int    `json:"expires_in"`
-		IDToken      string `json:"id_token"`
-		Scope        string `json:"scope"`
-		Error        string `json:"error"`
+		AccessToken      string `json:"access_token"`
+		TokenType        string `json:"token_type"`
+		ExpiresIn        int    `json:"expires_in"`
+		IDToken          string `json:"id_token"`
+		Scope            string `json:"scope"`
+		Error            string `json:"error"`
 		ErrorDescription string `json:"error_description"`
 	}
 
@@ -289,7 +289,7 @@ func (g *GoogleProvider) GetUserInfo(ctx context.Context, accessToken string) (*
 func (g *GoogleProvider) RevokeToken(ctx context.Context, token string) error {
 	// Google's revoke endpoint
 	revokeURL := "https://oauth2.googleapis.com/revoke"
-	
+
 	data := url.Values{
 		"token": {token},
 	}
@@ -353,7 +353,7 @@ func (g *GoogleProvider) ParseIDToken(idToken string) (map[string]interface{}, e
 
 	// Decode the payload (second part)
 	payload := parts[1]
-	
+
 	// Add padding if needed for base64 decoding
 	if len(payload)%4 != 0 {
 		payload += strings.Repeat("=", 4-len(payload)%4)
@@ -371,4 +371,3 @@ func (g *GoogleProvider) ParseIDToken(idToken string) (map[string]interface{}, e
 
 	return claims, nil
 }
-

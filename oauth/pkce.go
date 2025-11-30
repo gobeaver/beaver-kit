@@ -46,19 +46,19 @@ func generateCodeVerifier() (string, error) {
 
 	// Base64url encode without padding (uses only unreserved characters)
 	verifier := base64.RawURLEncoding.EncodeToString(data)
-	
+
 	// Ensure it meets the RFC 7636 length requirements (43-128 characters)
 	if len(verifier) < 43 || len(verifier) > 128 {
 		return "", fmt.Errorf("generated verifier invalid length: %d chars (must be 43-128)", len(verifier))
 	}
-	
+
 	// Validate that only unreserved characters are used (base64url guarantees this)
 	for _, c := range verifier {
 		if !isUnreservedChar(c) {
 			return "", fmt.Errorf("invalid character in verifier: %c", c)
 		}
 	}
-	
+
 	return verifier, nil
 }
 
@@ -99,7 +99,7 @@ func IsPKCESupported(provider string) bool {
 		"twitter": true, // Twitter OAuth 2.0 supports PKCE
 		"custom":  true, // Assume custom providers support it
 	}
-	
+
 	return supportedProviders[strings.ToLower(provider)]
 }
 
@@ -108,7 +108,7 @@ func PKCEParams(pkce *PKCEChallenge) map[string]string {
 	if pkce == nil {
 		return nil
 	}
-	
+
 	return map[string]string{
 		"code_challenge":        pkce.Challenge,
 		"code_challenge_method": pkce.ChallengeMethod,
@@ -120,7 +120,7 @@ func PKCETokenParams(pkce *PKCEChallenge) map[string]string {
 	if pkce == nil {
 		return nil
 	}
-	
+
 	return map[string]string{
 		"code_verifier": pkce.Verifier,
 	}
@@ -132,7 +132,7 @@ func GeneratePKCEChallengeWithLength(method string, length int) (*PKCEChallenge,
 	if length < 43 || length > 128 {
 		return nil, fmt.Errorf("invalid verifier length %d: must be between 43 and 128", length)
 	}
-	
+
 	// Generate code verifier with specific length
 	verifier, err := generateCodeVerifierWithLength(length)
 	if err != nil {
@@ -164,7 +164,7 @@ func generateCodeVerifierWithLength(length int) (string, error) {
 	if byteLength < 32 {
 		byteLength = 32 // Minimum for security
 	}
-	
+
 	data := make([]byte, byteLength)
 	if _, err := rand.Read(data); err != nil {
 		return "", err
@@ -172,12 +172,12 @@ func generateCodeVerifierWithLength(length int) (string, error) {
 
 	// Base64url encode without padding
 	verifier := base64.RawURLEncoding.EncodeToString(data)
-	
+
 	// Truncate to exact length if needed
 	if len(verifier) > length {
 		verifier = verifier[:length]
 	}
-	
+
 	// Pad with random characters if too short (shouldn't happen)
 	for len(verifier) < length {
 		b := make([]byte, 1)
@@ -189,14 +189,14 @@ func generateCodeVerifierWithLength(length int) (string, error) {
 			verifier += string(char[0])
 		}
 	}
-	
+
 	// Final validation
 	for _, c := range verifier {
 		if !isUnreservedChar(c) {
 			return "", fmt.Errorf("invalid character in verifier: %c", c)
 		}
 	}
-	
+
 	return verifier, nil
 }
 
@@ -206,14 +206,14 @@ func ValidateVerifier(verifier string) error {
 	if len(verifier) < 43 || len(verifier) > 128 {
 		return fmt.Errorf("invalid verifier length %d: must be between 43 and 128", len(verifier))
 	}
-	
+
 	// Check characters
 	for _, c := range verifier {
 		if !isUnreservedChar(c) {
 			return fmt.Errorf("invalid character in verifier: %c", c)
 		}
 	}
-	
+
 	return nil
 }
 

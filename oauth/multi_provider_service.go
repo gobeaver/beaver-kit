@@ -23,7 +23,7 @@ type MultiProviderService struct {
 type MultiProviderConfig struct {
 	// Provider configurations mapped by name
 	Providers map[string]ProviderConfig `env:"OAUTH_PROVIDERS"`
-	
+
 	// Global settings
 	PKCEEnabled        bool          `env:"OAUTH_PKCE_ENABLED,default:true"`
 	PKCEMethod         string        `env:"OAUTH_PKCE_METHOD,default:S256"`
@@ -31,11 +31,11 @@ type MultiProviderConfig struct {
 	TokenCacheDuration time.Duration `env:"OAUTH_TOKEN_CACHE_DURATION,default:1h"`
 	StateGenerator     string        `env:"OAUTH_STATE_GENERATOR,default:secure"`
 	HTTPTimeout        time.Duration `env:"OAUTH_HTTP_TIMEOUT,default:30s"`
-	
+
 	// Security settings
 	EncryptSessions bool   `env:"OAUTH_ENCRYPT_SESSIONS,default:false"`
 	SecretKey       string `env:"OAUTH_SECRET_KEY"`
-	
+
 	// Debug mode
 	Debug bool `env:"OAUTH_DEBUG,default:false"`
 }
@@ -44,10 +44,10 @@ type MultiProviderConfig struct {
 func NewMultiProviderService(config MultiProviderConfig) (*MultiProviderService, error) {
 	// Initialize session store
 	sessionStore := NewMemorySessionStore(config.SessionTimeout)
-	
+
 	// Initialize token store
 	tokenStore := NewMemoryTokenStore(config.TokenCacheDuration)
-	
+
 	// Initialize state generator
 	var stateGen StateGenerator
 	switch config.StateGenerator {
@@ -58,7 +58,7 @@ func NewMultiProviderService(config MultiProviderConfig) (*MultiProviderService,
 	default:
 		return nil, fmt.Errorf("unknown state generator: %s", config.StateGenerator)
 	}
-	
+
 	service := &MultiProviderService{
 		providers:   make(map[string]Provider),
 		sessions:    sessionStore,
@@ -67,7 +67,7 @@ func NewMultiProviderService(config MultiProviderConfig) (*MultiProviderService,
 		stateGen:    stateGen,
 		httpTimeout: config.HTTPTimeout,
 	}
-	
+
 	// Initialize providers from config
 	if config.Providers != nil {
 		for name, providerConfig := range config.Providers {
@@ -78,7 +78,7 @@ func NewMultiProviderService(config MultiProviderConfig) (*MultiProviderService,
 			service.providers[name] = provider
 		}
 	}
-	
+
 	return service, nil
 }
 
@@ -90,14 +90,14 @@ func (s *MultiProviderService) RegisterProvider(name string, provider Provider) 
 	if provider == nil {
 		return fmt.Errorf("provider cannot be nil")
 	}
-	
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if _, exists := s.providers[name]; exists {
 		return fmt.Errorf("provider %s already registered", name)
 	}
-	
+
 	s.providers[name] = provider
 	return nil
 }
@@ -106,11 +106,11 @@ func (s *MultiProviderService) RegisterProvider(name string, provider Provider) 
 func (s *MultiProviderService) UnregisterProvider(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if _, exists := s.providers[name]; !exists {
 		return fmt.Errorf("provider %s not found", name)
 	}
-	
+
 	delete(s.providers, name)
 	return nil
 }
@@ -119,12 +119,12 @@ func (s *MultiProviderService) UnregisterProvider(name string) error {
 func (s *MultiProviderService) GetProvider(name string) (Provider, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	provider, exists := s.providers[name]
 	if !exists {
 		return nil, fmt.Errorf("provider %s not found", name)
 	}
-	
+
 	return provider, nil
 }
 
@@ -132,7 +132,7 @@ func (s *MultiProviderService) GetProvider(name string) (Provider, error) {
 func (s *MultiProviderService) ListProviders() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	names := make([]string, 0, len(s.providers))
 	for name := range s.providers {
 		names = append(names, name)
@@ -146,7 +146,7 @@ func (s *MultiProviderService) GetAuthURL(ctx context.Context, providerName stri
 	if err != nil {
 		return "", "", err
 	}
-	
+
 	// Apply options
 	options := &authOptions{
 		pkceEnabled: s.config.PKCEEnabled,
@@ -155,13 +155,13 @@ func (s *MultiProviderService) GetAuthURL(ctx context.Context, providerName stri
 	for _, opt := range opts {
 		opt(options)
 	}
-	
+
 	// Generate state
 	state, err := s.stateGen.Generate()
 	if err != nil {
 		return "", "", fmt.Errorf("failed to generate state: %w", err)
 	}
-	
+
 	// Generate PKCE challenge if enabled
 	var pkce *PKCEChallenge
 	if options.pkceEnabled && provider.SupportsPKCE() {
@@ -170,7 +170,7 @@ func (s *MultiProviderService) GetAuthURL(ctx context.Context, providerName stri
 			return "", "", fmt.Errorf("failed to generate PKCE challenge: %w", err)
 		}
 	}
-	
+
 	// Store session data
 	sessionData := &SessionData{
 		State:         state,
@@ -180,11 +180,11 @@ func (s *MultiProviderService) GetAuthURL(ctx context.Context, providerName stri
 		ExpiresAt:     time.Now().Add(s.config.SessionTimeout),
 		Metadata:      options.metadata,
 	}
-	
+
 	if err := s.sessions.Store(ctx, state, sessionData); err != nil {
 		return "", "", fmt.Errorf("failed to store session: %w", err)
 	}
-	
+
 	// Get authorization URL from provider
 	authURL := provider.GetAuthURL(state, pkce)
 	return authURL, state, nil
@@ -197,46 +197,46 @@ func (s *MultiProviderService) Exchange(ctx context.Context, providerName, code,
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidState, err)
 	}
-	
+
 	// Validate session hasn't expired
 	if sessionData.IsExpired() {
 		return nil, fmt.Errorf("%w: session expired", ErrInvalidState)
 	}
-	
+
 	// Validate state matches
 	if sessionData.State != state {
 		return nil, fmt.Errorf("%w: state mismatch", ErrInvalidState)
 	}
-	
+
 	// Validate provider matches
 	if sessionData.Provider != providerName {
-		return nil, fmt.Errorf("%w: provider mismatch (expected %s, got %s)", 
+		return nil, fmt.Errorf("%w: provider mismatch (expected %s, got %s)",
 			ErrInvalidState, sessionData.Provider, providerName)
 	}
-	
+
 	// Get the provider
 	provider, err := s.GetProvider(providerName)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Exchange code for token
 	token, err := provider.Exchange(ctx, code, sessionData.PKCEChallenge)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Calculate expiration time if not set
 	if token.ExpiresAt.IsZero() && token.ExpiresIn > 0 {
 		token.ExpiresAt = time.Now().Add(time.Duration(token.ExpiresIn) * time.Second)
 	}
-	
+
 	// Cache token if enabled
 	if s.config.TokenCacheDuration > 0 {
 		cacheKey := fmt.Sprintf("token:%s:%s", providerName, code)
 		s.tokens.Store(ctx, cacheKey, token)
 	}
-	
+
 	return token, nil
 }
 
@@ -246,21 +246,21 @@ func (s *MultiProviderService) RefreshToken(ctx context.Context, providerName, r
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if !provider.SupportsRefresh() {
 		return nil, fmt.Errorf("%w: provider %s doesn't support refresh", ErrNoRefreshToken, providerName)
 	}
-	
+
 	token, err := provider.RefreshToken(ctx, refreshToken)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Calculate expiration time if not set
 	if token.ExpiresAt.IsZero() && token.ExpiresIn > 0 {
 		token.ExpiresAt = time.Now().Add(time.Duration(token.ExpiresIn) * time.Second)
 	}
-	
+
 	return token, nil
 }
 
@@ -270,15 +270,15 @@ func (s *MultiProviderService) GetUserInfo(ctx context.Context, providerName, ac
 	if err != nil {
 		return nil, err
 	}
-	
+
 	userInfo, err := provider.GetUserInfo(ctx, accessToken)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Set provider name
 	userInfo.Provider = providerName
-	
+
 	return userInfo, nil
 }
 
@@ -288,7 +288,7 @@ func (s *MultiProviderService) RevokeToken(ctx context.Context, providerName, to
 	if err != nil {
 		return err
 	}
-	
+
 	return provider.RevokeToken(ctx, token)
 }
 
@@ -298,11 +298,11 @@ func (s *MultiProviderService) ValidateState(ctx context.Context, state string) 
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrInvalidState, err)
 	}
-	
+
 	if sessionData.IsExpired() {
 		return nil, fmt.Errorf("%w: session expired", ErrInvalidState)
 	}
-	
+
 	return sessionData, nil
 }
 
@@ -343,7 +343,7 @@ func createProvider(name string, config ProviderConfig) (Provider, error) {
 	if config.Type != "" {
 		providerType = strings.ToLower(config.Type)
 	}
-	
+
 	switch providerType {
 	case "google":
 		provider := NewGoogle(config)

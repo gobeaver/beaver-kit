@@ -21,9 +21,9 @@ type RateLimiter interface {
 
 // RateLimitStatus provides information about current rate limit state
 type RateLimitStatus struct {
-	Limit     int           `json:"limit"`
-	Remaining int           `json:"remaining"`
-	Reset     time.Time     `json:"reset"`
+	Limit      int           `json:"limit"`
+	Remaining  int           `json:"remaining"`
+	Reset      time.Time     `json:"reset"`
 	RetryAfter time.Duration `json:"retry_after,omitempty"`
 }
 
@@ -36,18 +36,18 @@ type TokenBucketLimiter struct {
 
 // RateLimiterConfig configures the rate limiter
 type RateLimiterConfig struct {
-	Rate       int           // Number of tokens per interval
-	Interval   time.Duration // Time interval for rate
-	BurstSize  int           // Maximum burst size
-	MaxEntries int           // Maximum number of tracked entries
+	Rate            int           // Number of tokens per interval
+	Interval        time.Duration // Time interval for rate
+	BurstSize       int           // Maximum burst size
+	MaxEntries      int           // Maximum number of tracked entries
 	CleanupInterval time.Duration // Interval for cleaning up old entries
 }
 
 // bucket represents a token bucket for a single key
 type bucket struct {
-	tokens    float64
+	tokens     float64
 	lastRefill time.Time
-	mu        sync.Mutex
+	mu         sync.Mutex
 }
 
 // NewTokenBucketLimiter creates a new token bucket rate limiter
@@ -98,9 +98,9 @@ func (l *TokenBucketLimiter) AllowN(ctx context.Context, key string, n int) (boo
 			l.mu.Unlock()
 			return false, fmt.Errorf("rate limiter at capacity")
 		}
-		
+
 		b = &bucket{
-			tokens:    float64(l.config.BurstSize),
+			tokens:     float64(l.config.BurstSize),
 			lastRefill: time.Now(),
 		}
 		l.buckets[key] = b
@@ -114,7 +114,7 @@ func (l *TokenBucketLimiter) AllowN(ctx context.Context, key string, n int) (boo
 	now := time.Now()
 	elapsed := now.Sub(b.lastRefill)
 	tokensToAdd := elapsed.Seconds() * (float64(l.config.Rate) / l.config.Interval.Seconds())
-	
+
 	b.tokens = min(b.tokens+tokensToAdd, float64(l.config.BurstSize))
 	b.lastRefill = now
 
@@ -167,9 +167,9 @@ func (l *TokenBucketLimiter) GetStatus(ctx context.Context, key string) (*RateLi
 	}
 
 	return &RateLimitStatus{
-		Limit:     l.config.Rate,
-		Remaining: int(currentTokens),
-		Reset:     now.Add(l.config.Interval),
+		Limit:      l.config.Rate,
+		Remaining:  int(currentTokens),
+		Reset:      now.Add(l.config.Interval),
 		RetryAfter: retryAfter,
 	}, nil
 }
@@ -252,7 +252,7 @@ func (l *SlidingWindowLimiter) AllowN(ctx context.Context, key string, n int) (b
 			l.mu.Unlock()
 			return false, fmt.Errorf("rate limiter at capacity")
 		}
-		
+
 		w = &window{
 			requests: make([]time.Time, 0, l.config.Rate),
 		}
@@ -330,7 +330,7 @@ func (l *SlidingWindowLimiter) GetStatus(ctx context.Context, key string) (*Rate
 	}
 
 	remaining := l.config.Rate - validCount
-	
+
 	// Calculate retry after if rate limit exceeded
 	var retryAfter time.Duration
 	if remaining <= 0 && !oldestRequest.IsZero() {
@@ -338,9 +338,9 @@ func (l *SlidingWindowLimiter) GetStatus(ctx context.Context, key string) (*Rate
 	}
 
 	return &RateLimitStatus{
-		Limit:     l.config.Rate,
-		Remaining: max(0, remaining),
-		Reset:     now.Add(l.config.Interval),
+		Limit:      l.config.Rate,
+		Remaining:  max(0, remaining),
+		Reset:      now.Add(l.config.Interval),
 		RetryAfter: retryAfter,
 	}, nil
 }
@@ -354,7 +354,7 @@ func (l *SlidingWindowLimiter) cleanup() {
 		l.mu.Lock()
 		now := time.Now()
 		windowStart := now.Add(-l.config.Interval * 2)
-		
+
 		for key, w := range l.windows {
 			w.mu.Lock()
 			hasRecentRequests := false

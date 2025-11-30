@@ -114,6 +114,20 @@ func (v *FileValidator) ValidateWithContext(ctx context.Context, file *multipart
 		)
 	}
 
+	// Strict MIME type validation: ensure extension matches detected MIME type
+	if v.constraints.StrictMIMETypeValidation {
+		ext := strings.ToLower(filepath.Ext(file.Filename))
+		if ext != "" {
+			expectedMIME := MIMETypeForExtension(ext)
+			if expectedMIME != "" && expectedMIME != mimeType {
+				return NewValidationError(
+					ErrorTypeMIME,
+					fmt.Sprintf("MIME type mismatch: extension %s suggests %s but detected %s", ext, expectedMIME, mimeType),
+				)
+			}
+		}
+	}
+
 	// Perform content validation if enabled
 	if v.constraints.ContentValidationEnabled && v.constraints.ContentValidatorRegistry != nil {
 		// Reset file reader for content validation
@@ -180,6 +194,20 @@ func (v *FileValidator) ValidateReader(reader io.Reader, filename string, size i
 				ErrorTypeMIME,
 				fmt.Sprintf("file type %s is not accepted; allowed types: %v", mimeType, v.expandedAcceptedTypes()),
 			)
+		}
+
+		// Strict MIME type validation: ensure extension matches detected MIME type
+		if v.constraints.StrictMIMETypeValidation {
+			ext := strings.ToLower(filepath.Ext(filename))
+			if ext != "" {
+				expectedMIME := MIMETypeForExtension(ext)
+				if expectedMIME != "" && expectedMIME != mimeType {
+					return NewValidationError(
+						ErrorTypeMIME,
+						fmt.Sprintf("MIME type mismatch: extension %s suggests %s but detected %s", ext, expectedMIME, mimeType),
+					)
+				}
+			}
 		}
 
 		// Perform content validation if enabled

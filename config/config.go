@@ -37,12 +37,13 @@ type LoadOptions struct {
 //   - Required environment variables are missing (if validation is implemented)
 //
 // Example:
+//
 //	type Config struct {
 //	    DatabaseURL string `env:"DATABASE_URL"`
 //	    Port        int    `env:"PORT,default:8080"`
 //	    Debug       bool   `env:"DEBUG,default:false"`
 //	}
-//	
+//
 //	var cfg Config
 //	err := config.Load(&cfg, config.LoadOptions{Prefix: "MYAPP_"})
 //	// Will look for MYAPP_DATABASE_URL, MYAPP_PORT, MYAPP_DEBUG

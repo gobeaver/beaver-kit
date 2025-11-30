@@ -1,0 +1,270 @@
+run:
+  timeout: 5m
+  concurrency: 8
+  build-tags:
+    - integration
+  modules-download-mode: readonly
+linters:
+  enable:
+    # Bug Prevention & Security
+    - errcheck      # Unchecked errors (crashes/data loss)
+    - gosec         # Security vulnerabilities
+    - govet         # Suspicious constructs
+    - staticcheck   # Comprehensive static analysis
+    - typecheck     # Type errors
+
+    - revive         # checks for style and naming conventions
+    - gosimple     # includes checks for Go idioms
+
+    # Code Quality
+    - unused        # Dead code
+    - ineffassign   # Wasted assignments
+    - dupl          # Code duplication (copy-paste detector)
+
+    # Formatting
+    - gofmt         # Standard formatting
+    - goimports     # Import organization
+
+    # - gocritic      # checks for naming, performance, etc.
+
+# linters:
+  # enable:
+  #   # Security & Error Handling (AMEDAZ Requirements)
+  #   - errcheck        # Check for unchecked errors
+  #   - errorlint       # Enforce errors.Is/As instead of == for error comparison
+  #   - gosec           # Security scanner (required by AMEDAZ)
+  #   - staticcheck     # Static analysis
+
+  #   # Code Quality
+  #   - govet           # Reports suspicious constructs
+  #   - ineffassign     # Detect ineffectual assignments
+  #   - unused          # Find unused code
+  #   - typecheck       # Type checking
+
+  #   # Style & Conventions
+  #   - stylecheck      # Go style guide enforcement
+  #   - revive          # Fast, configurable linter
+  #   - gofmt           # Format checking
+  #   - goimports       # Import organization
+  #   - misspell        # Catch spelling errors
+
+  #   # Complexity & Duplication
+  #   - gocyclo         # Cyclomatic complexity (max 15)
+  #   - dupl            # Code duplication detection
+  #   - goconst         # Find repeated strings → constants
+  #   - gocritic        # Comprehensive checks (detects mixed receivers + 100+ more)
+
+  #   # Resource Leak Detection (Critical for Production)
+  #   - bodyclose       # HTTP response bodies must be closed
+  #   - sqlclosecheck   # SQL rows/statements must be closed
+  #   - rowserrcheck    # SQL rows.Err() must be checked (prevents data loss)
+  #   - noctx           # HTTP requests must use context
+  #   - nilnil          # Detects (nil, nil) return patterns (usually bugs)
+
+  #   # Custom Rules
+  #   - forbidigo       # Forbid specific function calls
+
+  #   # Bug Detection (Tier 1 - Critical for Production)
+  #   - copyloopvar     # Catches loop variable pointer bugs (replaces deprecated exportloopref)
+  #   - nilerr          # Finds suspicious nil error returns
+  #   - makezero        # Finds incorrect slice length when using make
+  #   - wrapcheck       # Ensures errors from external packages are wrapped
+  #   - errname         # Checks that error types are named correctly (XxxError)
+  #   - unconvert       # Removes unnecessary type conversions
+  #   - unparam         # Finds unused function parameters
+  #   - wastedassign    # Finds wasted assignments
+  #   - predeclared     # Finds code that shadows predeclared identifiers
+
+  #   # Context & Concurrency
+  #   - contextcheck    # Ensures functions use context.Context correctly
+
+  #   # Code Quality (Tier 2 - Nice to Have)
+  #   - nakedret        # Finds naked returns in long functions (confusing)
+  #   - whitespace      # Finds unnecessary whitespace
+  #   - prealloc        # Finds slice declarations that could be preallocated
+  #   - thelper         # Detects test helpers without t.Helper()
+  #   - nolintlint      # Ensures nolint directives are correct
+
+  #   # Security
+  #   - bidichk         # Checks for dangerous unicode characters
+
+  #   # API/Database Best Practices (Tier 1 - Critical for SaaS)
+  #   - musttag         # ⭐ Ensures JSON/GORM struct tags are present
+  #   - errchkjson      # Checks JSON encoding errors are handled
+  #   - containedctx    # Detects context.Context in structs (anti-pattern)
+  #   - fatcontext      # Detects nested contexts in loops (prevents memory leaks)
+
+  #   # Go Best Practices (Tier 1)
+  #   - ireturn         # ⭐ Accept interfaces, return concrete types
+  #   - interfacebloat  # Limits interface methods (keeps interfaces small)
+  #   - nestif          # Prevents deeply nested if statements
+
+  #   # Performance & Formatting (Tier 1)
+  #   - gofumpt         # ⭐ Stricter formatter than gofmt (more consistent)
+  #   - perfsprint      # Replaces fmt.Sprintf with faster alternatives
+
+  #   # Code Quality (Tier 2 - Nice to Have)
+  #   # - tagliatelle     # Enforces consistent struct tag naming
+  #   # - gocognit        # Cognitive complexity (readability metric)
+  #   # - varnamelen      # Enforces meaningful variable names
+  #   # - dogsled         # Limits blank identifiers in assignments
+
+
+
+linters-settings:
+  errorlint:
+    errorf: true
+    asserts: true
+    comparison: true
+
+  forbidigo:
+    forbid:
+      # Logging - MUST use pkg/logger (when implemented)
+      # TODO: Enable after logger refactoring is complete
+      # - p: ^(fmt\.Print.*|log\.Print.*)$
+      #   msg: "Use pkg/logger instead (see docs/conventions/logging_conventions.md)"
+
+      # Configuration - MUST use config.Config struct
+      - p: ^os\.Getenv$
+        msg: "Use config.Config.* instead of os.Getenv (see docs/conventions/configuration_conventions.md)"
+
+  gocyclo:
+    min-complexity: 15  # Max complexity per function (AMEDAZ standard)
+
+  gosec:
+    severity: medium
+    confidence: medium
+    excludes:
+      - G104  # Audit errors not checked (covered by errcheck)
+    exclude-generated: true
+
+  stylecheck:
+    checks: ["all"]
+
+  revive:
+    rules:
+      - name: exported
+        severity: warning
+        disabled: false
+      - name: package-comments
+        severity: warning
+        disabled: false
+      - name: var-naming
+        severity: warning
+        disabled: false
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+    disabled-checks:
+      - commentedOutCode
+      - whyNoLint
+      - unnamedResult
+
+  wrapcheck:
+    # Ignore errors from these functions (they're already wrapped or are standard errors)
+    ignoreSigs:
+      - .Errorf(
+      - errors.New(
+      - errors.Unwrap(
+      - .Wrap(
+      - .Wrapf(
+    # Ignore errors from encoding and standard packages
+    ignorePackageGlobs:
+      - encoding/*
+      - github.com/pkg/*
+
+  nakedret:
+    max-func-lines: 30  # Functions over 30 lines shouldn't use naked returns
+
+  unparam:
+    check-exported: false  # Don't check exported functions (public API)
+
+  dupl:
+    threshold: 100  # Tokens threshold for duplication
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+  # Exclude directories (replaces deprecated run.skip-dirs)
+  exclude-dirs:
+    - database/sqlc
+    - docs
+
+  # Exclude files (replaces deprecated run.skip-files)
+  exclude-files:
+    - ".*\\.pb\\.go$"
+
+  exclude-rules:
+    # Test files - relax some rules
+    - path: _test\.go
+      linters:
+        - gosec
+        - dupl
+        - gocyclo
+        - goconst
+
+    # Generated SQLC code - exclude all
+    - path: database/sqlc/
+      linters:
+        - all
+
+    # Generated Swagger docs - exclude all
+    - path: docs/
+      linters:
+        - all
+
+    # Migration files - SQL not Go
+    - path: database/migrations/
+      linters:
+        - all
+
+    # Allow fmt.Printf in main.go for CLI output
+    - path: cmd/cli/
+      linters:
+        - forbidigo
+      text: "fmt\\.Print"
+
+    # Allow os.Getenv in config_loader.go (it's the config layer)
+    - path: config/config_loader\.go
+      linters:
+        - forbidigo
+      text: "os\\.Getenv"
+
+    # Allow higher complexity in specific validation/rendering functions
+    - linters:
+        - gocyclo
+      text: "(HandleFormSubmission|renderField|buildEmailBody|ValidateFields|validateChannel|CheckAndHandleIncident|UpdateForm|CreateForm|sendWebhook).*is high"
+
+    # Allow higher complexity in migration main function
+    - path: cmd/migrate/main\.go
+      linters:
+        - gocyclo
+
+    # Relax wrapcheck for test files (tests often don't need wrapped errors)
+    - path: _test\.go
+      linters:
+        - wrapcheck
+        - unparam
+
+    # Allow unwrapped GORM errors in repository layer (they're domain-specific)
+    - path: repository/
+      linters:
+        - wrapcheck
+      text: "error returned from external package is unwrapped"
+
+    # Allow unwrapped errors in handlers (they're converted to HTTP responses)
+    - path: handlers/
+      linters:
+        - wrapcheck
+
+    # Ignore unused parameters in HTTP handlers (w, r are required by interface)
+    - path: handlers/
+      linters:
+        - unparam
+      text: "(w|r|ctx) is unused"
+
+#       golangci-lint run --disable-all --enable=event --no-config

@@ -4,84 +4,95 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"regexp"
 	"strings"
 )
 
-// PDFValidator validates PDF files for malicious content
+// PDFValidator validates PDF file structure (header/trailer).
+// This is TYPE validation, not security scanning.
+// For malware detection, integrate with ClamAV or similar.
 type PDFValidator struct {
-	AllowJavaScript    bool
-	AllowEmbeddedFiles bool
-	AllowForms         bool
-	AllowActions       bool
-	MaxSize            int64
-	ValidateStructure  bool
+	MaxSize int64
 }
 
-// DefaultPDFValidator creates a PDF validator with secure defaults
+// DefaultPDFValidator creates a PDF validator with sensible defaults
 func DefaultPDFValidator() *PDFValidator {
 	return &PDFValidator{
-		AllowJavaScript:    false,
-		AllowEmbeddedFiles: false,
-		AllowForms:         true,
-		AllowActions:       false,
-		MaxSize:            50 * MB,
-		ValidateStructure:  true,
+		MaxSize: 50 * MB,
 	}
 }
 
-// ValidateContent validates the content of a PDF file
+// ValidateContent validates that a file is a valid PDF by checking header and trailer.
+// Only reads first 1KB and last 1KB - does NOT load entire file into memory.
 func (v *PDFValidator) ValidateContent(reader io.Reader, size int64) error {
 	if size > v.MaxSize {
 		return NewValidationError(ErrorTypeContent,
 			fmt.Sprintf("PDF size %d exceeds maximum %d", size, v.MaxSize))
 	}
 
-	// Read the entire content
-	data, err := ioutil.ReadAll(reader)
+	// Try to use seeking for efficient validation
+	if seeker, ok := reader.(io.ReadSeeker); ok {
+		return v.validateWithSeeker(seeker, size)
+	}
+
+	// Fallback: read only what we need for small files, reject large non-seekable streams
+	if size > 1*MB {
+		return NewValidationError(ErrorTypeContent,
+			"large PDF requires seekable reader for efficient validation")
+	}
+
+	return v.validateSmallFile(reader, size)
+}
+
+// validateWithSeeker efficiently validates PDF by reading only header and trailer
+func (v *PDFValidator) validateWithSeeker(reader io.ReadSeeker, size int64) error {
+	// Read header (first 1KB)
+	headerSize := int64(1024)
+	if size < headerSize {
+		headerSize = size
+	}
+	header := make([]byte, headerSize)
+	if _, err := io.ReadFull(reader, header); err != nil {
+		return NewValidationError(ErrorTypeContent, "failed to read PDF header")
+	}
+
+	if !v.hasValidPDFHeader(header) {
+		return NewValidationError(ErrorTypeContent, "invalid PDF header")
+	}
+
+	// Read trailer (last 1KB)
+	tailSize := int64(1024)
+	if size < tailSize {
+		tailSize = size
+	}
+	if _, err := reader.Seek(-tailSize, io.SeekEnd); err != nil {
+		return NewValidationError(ErrorTypeContent, "failed to seek to PDF trailer")
+	}
+
+	trailer := make([]byte, tailSize)
+	if _, err := io.ReadFull(reader, trailer); err != nil {
+		return NewValidationError(ErrorTypeContent, "failed to read PDF trailer")
+	}
+
+	if !v.hasValidPDFTrailer(trailer) {
+		return NewValidationError(ErrorTypeContent, "invalid PDF trailer")
+	}
+
+	return nil
+}
+
+// validateSmallFile handles non-seekable readers for small files
+func (v *PDFValidator) validateSmallFile(reader io.Reader, size int64) error {
+	data, err := io.ReadAll(reader)
 	if err != nil {
 		return NewValidationError(ErrorTypeContent, "failed to read PDF content")
 	}
 
-	// Validate PDF header
 	if !v.hasValidPDFHeader(data) {
 		return NewValidationError(ErrorTypeContent, "invalid PDF header")
 	}
 
-	// Validate PDF trailer
 	if !v.hasValidPDFTrailer(data) {
 		return NewValidationError(ErrorTypeContent, "invalid PDF trailer")
-	}
-
-	// Check for JavaScript
-	if !v.AllowJavaScript && v.containsJavaScript(data) {
-		return NewValidationError(ErrorTypeContent, "PDF contains JavaScript which is not allowed")
-	}
-
-	// Check for embedded files
-	if !v.AllowEmbeddedFiles && v.containsEmbeddedFiles(data) {
-		return NewValidationError(ErrorTypeContent, "PDF contains embedded files which are not allowed")
-	}
-
-	// Check for forms
-	if !v.AllowForms && v.containsForms(data) {
-		return NewValidationError(ErrorTypeContent, "PDF contains forms which are not allowed")
-	}
-
-	// Check for actions
-	if !v.AllowActions && v.containsActions(data) {
-		return NewValidationError(ErrorTypeContent, "PDF contains actions which are not allowed")
-	}
-
-	// Check for launch actions (always dangerous)
-	if v.containsLaunchActions(data) {
-		return NewValidationError(ErrorTypeContent, "PDF contains launch actions which are always blocked")
-	}
-
-	// Check for suspicious patterns
-	if v.containsSuspiciousPatterns(data) {
-		return NewValidationError(ErrorTypeContent, "PDF contains suspicious patterns")
 	}
 
 	return nil
@@ -114,157 +125,5 @@ func (v *PDFValidator) hasValidPDFTrailer(data []byte) bool {
 		return false
 	}
 
-	// Look for %%EOF in the last 1024 bytes
-	tailSize := min(len(data), 1024)
-	tail := data[len(data)-tailSize:]
-
-	return bytes.Contains(tail, []byte("%%EOF"))
-}
-
-// containsJavaScript checks for JavaScript in the PDF
-func (v *PDFValidator) containsJavaScript(data []byte) bool {
-	patterns := [][]byte{
-		[]byte("/JavaScript"),
-		[]byte("/JS"),
-		[]byte("app.alert"),
-		[]byte("app.launchURL"),
-		[]byte("this.exportDataObject"),
-		[]byte("util.printf"),
-	}
-
-	for _, pattern := range patterns {
-		if bytes.Contains(data, pattern) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// containsEmbeddedFiles checks for embedded files in the PDF
-func (v *PDFValidator) containsEmbeddedFiles(data []byte) bool {
-	patterns := [][]byte{
-		[]byte("/EmbeddedFiles"),
-		[]byte("/Filespec"),
-		[]byte("/EmbeddedFile"),
-	}
-
-	for _, pattern := range patterns {
-		if bytes.Contains(data, pattern) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// containsForms checks for forms in the PDF
-func (v *PDFValidator) containsForms(data []byte) bool {
-	patterns := [][]byte{
-		[]byte("/AcroForm"),
-		[]byte("/XFA"),
-		[]byte("/Field"),
-	}
-
-	for _, pattern := range patterns {
-		if bytes.Contains(data, pattern) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// containsActions checks for actions in the PDF
-func (v *PDFValidator) containsActions(data []byte) bool {
-	patterns := [][]byte{
-		[]byte("/Action"),
-		[]byte("/OpenAction"),
-		[]byte("/AA"), // Additional Actions
-		[]byte("/Named"),
-		[]byte("/SubmitForm"),
-		[]byte("/ImportData"),
-		[]byte("/ResetForm"),
-		[]byte("/Hide"),
-	}
-
-	for _, pattern := range patterns {
-		if bytes.Contains(data, pattern) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// containsLaunchActions checks for launch actions (always dangerous)
-func (v *PDFValidator) containsLaunchActions(data []byte) bool {
-	patterns := [][]byte{
-		[]byte("/Launch"),
-		[]byte("/GoToR"), // GoTo remote
-		[]byte("/URI"),
-		[]byte("/GoToE"), // GoTo embedded
-	}
-
-	for _, pattern := range patterns {
-		if bytes.Contains(data, pattern) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// containsSuspiciousPatterns checks for various suspicious patterns
-func (v *PDFValidator) containsSuspiciousPatterns(data []byte) bool {
-	// Check for suspicious URLs
-	urlPattern := regexp.MustCompile(`https?://[a-zA-Z0-9\-\.]+\.(tk|ml|ga|cf|pw|cc|su|bid|download|stream)`)
-	if urlPattern.Match(data) {
-		return true
-	}
-
-	// Check for suspicious executables
-	execPatterns := [][]byte{
-		[]byte(".exe"),
-		[]byte(".bat"),
-		[]byte(".cmd"),
-		[]byte(".com"),
-		[]byte(".scr"),
-		[]byte(".vbs"),
-		[]byte(".ps1"),
-		[]byte("cmd.exe"),
-		[]byte("powershell.exe"),
-		[]byte("wscript.exe"),
-		[]byte("cscript.exe"),
-	}
-
-	for _, pattern := range execPatterns {
-		if bytes.Contains(data, pattern) {
-			return true
-		}
-	}
-
-	// Check for obfuscated content
-	obfuscationPatterns := [][]byte{
-		[]byte("#"), // Hex strings
-		[]byte("/ASCIIHexDecode"),
-		[]byte("/ASCII85Decode"),
-		[]byte("/FlateDecode"),
-		[]byte("/LZWDecode"),
-		[]byte("/RunLengthDecode"),
-	}
-
-	obfuscationCount := 0
-	for _, pattern := range obfuscationPatterns {
-		if bytes.Contains(data, pattern) {
-			obfuscationCount++
-		}
-	}
-
-	// Too much obfuscation is suspicious
-	if obfuscationCount > 3 {
-		return true
-	}
-
-	return false
+	return bytes.Contains(data, []byte("%%EOF"))
 }

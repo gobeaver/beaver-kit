@@ -43,7 +43,7 @@ func New(cfg Config) (*MemoryCache, error) {
 	if cfg.CleanupInterval == 0 {
 		cfg.CleanupInterval = 1 * time.Minute
 	}
-	
+
 	// Combine prefix and namespace
 	prefix := cfg.KeyPrefix
 	if cfg.Namespace != "" {
@@ -53,7 +53,7 @@ func New(cfg Config) (*MemoryCache, error) {
 			prefix = cfg.Namespace + ":"
 		}
 	}
-	
+
 	mc := &MemoryCache{
 		items:           make(map[string]*item),
 		maxSize:         cfg.MaxSize,
@@ -63,10 +63,10 @@ func New(cfg Config) (*MemoryCache, error) {
 		stopCleanup:     make(chan struct{}),
 		keyPrefix:       prefix,
 	}
-	
+
 	// Start cleanup goroutine
 	go mc.cleanupExpired()
-	
+
 	return mc, nil
 }
 
@@ -74,18 +74,18 @@ func New(cfg Config) (*MemoryCache, error) {
 func (mc *MemoryCache) Get(ctx context.Context, key string) ([]byte, error) {
 	mc.mu.RLock()
 	defer mc.mu.RUnlock()
-	
+
 	fullKey := mc.keyPrefix + key
 	item, exists := mc.items[fullKey]
 	if !exists {
 		return nil, errors.New("key not found")
 	}
-	
+
 	// Check expiration
 	if item.expiration > 0 && time.Now().UnixNano() > item.expiration {
 		return nil, errors.New("key not found")
 	}
-	
+
 	return item.value, nil
 }
 
@@ -93,47 +93,47 @@ func (mc *MemoryCache) Get(ctx context.Context, key string) ([]byte, error) {
 func (mc *MemoryCache) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
-	
+
 	fullKey := mc.keyPrefix + key
 	size := int64(len(value))
-	
+
 	// Check max keys limit
 	if mc.maxKeys > 0 && len(mc.items) >= mc.maxKeys {
 		if _, exists := mc.items[fullKey]; !exists {
 			return errors.New("max keys limit reached")
 		}
 	}
-	
+
 	// Check size limit
 	if mc.maxSize > 0 {
 		// If updating existing key, subtract old size
 		if old, exists := mc.items[fullKey]; exists {
 			mc.currentSize -= old.size
 		}
-		
+
 		if mc.currentSize+size > mc.maxSize {
 			return errors.New("max size limit reached")
 		}
 	}
-	
+
 	// Use default TTL if not specified
 	if ttl == 0 {
 		ttl = mc.defaultTTL
 	}
-	
+
 	var expiration int64
 	if ttl > 0 {
 		expiration = time.Now().Add(ttl).UnixNano()
 	}
-	
+
 	mc.items[fullKey] = &item{
 		value:      value,
 		expiration: expiration,
 		size:       size,
 	}
-	
+
 	mc.currentSize += size
-	
+
 	return nil
 }
 
@@ -141,13 +141,13 @@ func (mc *MemoryCache) Set(ctx context.Context, key string, value []byte, ttl ti
 func (mc *MemoryCache) Delete(ctx context.Context, key string) error {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
-	
+
 	fullKey := mc.keyPrefix + key
 	if item, exists := mc.items[fullKey]; exists {
 		mc.currentSize -= item.size
 		delete(mc.items, fullKey)
 	}
-	
+
 	return nil
 }
 
@@ -155,18 +155,18 @@ func (mc *MemoryCache) Delete(ctx context.Context, key string) error {
 func (mc *MemoryCache) Exists(ctx context.Context, key string) (bool, error) {
 	mc.mu.RLock()
 	defer mc.mu.RUnlock()
-	
+
 	fullKey := mc.keyPrefix + key
 	item, exists := mc.items[fullKey]
 	if !exists {
 		return false, nil
 	}
-	
+
 	// Check expiration
 	if item.expiration > 0 && time.Now().UnixNano() > item.expiration {
 		return false, nil
 	}
-	
+
 	return true, nil
 }
 
@@ -174,7 +174,7 @@ func (mc *MemoryCache) Exists(ctx context.Context, key string) (bool, error) {
 func (mc *MemoryCache) Clear(ctx context.Context) error {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
-	
+
 	// Only clear items with our prefix
 	if mc.keyPrefix != "" {
 		for key := range mc.items {
@@ -185,9 +185,9 @@ func (mc *MemoryCache) Clear(ctx context.Context) error {
 	} else {
 		mc.items = make(map[string]*item)
 	}
-	
+
 	mc.currentSize = 0
-	
+
 	return nil
 }
 
@@ -207,7 +207,7 @@ func (mc *MemoryCache) Ping(ctx context.Context) error {
 func (mc *MemoryCache) cleanupExpired() {
 	ticker := time.NewTicker(mc.cleanupInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -222,7 +222,7 @@ func (mc *MemoryCache) cleanupExpired() {
 func (mc *MemoryCache) removeExpired() {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
-	
+
 	now := time.Now().UnixNano()
 	for key, item := range mc.items {
 		if item.expiration > 0 && now > item.expiration {
@@ -236,12 +236,12 @@ func (mc *MemoryCache) removeExpired() {
 func (mc *MemoryCache) Stats() map[string]interface{} {
 	mc.mu.RLock()
 	defer mc.mu.RUnlock()
-	
+
 	return map[string]interface{}{
-		"keys":         len(mc.items),
-		"size":         mc.currentSize,
-		"max_size":     mc.maxSize,
-		"max_keys":     mc.maxKeys,
-		"key_prefix":   mc.keyPrefix,
+		"keys":       len(mc.items),
+		"size":       mc.currentSize,
+		"max_size":   mc.maxSize,
+		"max_keys":   mc.maxKeys,
+		"key_prefix": mc.keyPrefix,
 	}
 }

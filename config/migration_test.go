@@ -4,9 +4,9 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gobeaver/beaver-kit/cache"
 	"github.com/gobeaver/beaver-kit/config"
 	"github.com/gobeaver/beaver-kit/database"
-	"github.com/gobeaver/beaver-kit/cache"
 	"github.com/gobeaver/beaver-kit/slack"
 )
 

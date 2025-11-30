@@ -45,10 +45,10 @@ func (m *Metrics) RecordSuccess(latency time.Duration) {
 // RecordFailure records a failed message
 func (m *Metrics) RecordFailure(err error) {
 	m.messagesFailed.Add(1)
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	errKey := fmt.Sprintf("%T", err)
 	m.errorCounts[errKey]++
 }
@@ -188,8 +188,8 @@ func (l *Logger) log(level LogLevel, format string, args ...interface{}) {
 
 // RequestLogger logs requests with sensitive data redaction
 type RequestLogger struct {
-	logger  *Logger
-	redact  bool
+	logger *Logger
+	redact bool
 }
 
 // NewRequestLogger creates a new request logger
@@ -232,11 +232,11 @@ func (rl *RequestLogger) redactSensitive(s string) string {
 	}
 
 	// Redact potential tokens or secrets
-	s = redactPattern(s, `"token":\s*"[^"]+"`,"\"token\":\"REDACTED\"")
-	s = redactPattern(s, `"password":\s*"[^"]+"`,"\"password\":\"REDACTED\"")
-	s = redactPattern(s, `"secret":\s*"[^"]+"`,"\"secret\":\"REDACTED\"")
-	s = redactPattern(s, `"api_key":\s*"[^"]+"`,"\"api_key\":\"REDACTED\"")
-	
+	s = redactPattern(s, `"token":\s*"[^"]+"`, "\"token\":\"REDACTED\"")
+	s = redactPattern(s, `"password":\s*"[^"]+"`, "\"password\":\"REDACTED\"")
+	s = redactPattern(s, `"secret":\s*"[^"]+"`, "\"secret\":\"REDACTED\"")
+	s = redactPattern(s, `"api_key":\s*"[^"]+"`, "\"api_key\":\"REDACTED\"")
+
 	return s
 }
 

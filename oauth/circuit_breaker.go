@@ -11,9 +11,9 @@ import (
 
 // CircuitBreaker states
 const (
-	StateClosed    = "closed"
-	StateOpen      = "open"
-	StateHalfOpen  = "half_open"
+	StateClosed   = "closed"
+	StateOpen     = "open"
+	StateHalfOpen = "half_open"
 )
 
 // CircuitBreaker errors
@@ -36,32 +36,32 @@ type CircuitBreaker interface {
 
 // CircuitStats represents circuit breaker statistics
 type CircuitStats struct {
-	State            string        `json:"state"`
-	Requests         int64         `json:"requests"`
-	TotalSuccesses   int64         `json:"total_successes"`
-	TotalFailures    int64         `json:"total_failures"`
+	State                string    `json:"state"`
+	Requests             int64     `json:"requests"`
+	TotalSuccesses       int64     `json:"total_successes"`
+	TotalFailures        int64     `json:"total_failures"`
 	ConsecutiveSuccesses int64     `json:"consecutive_successes"`
 	ConsecutiveFailures  int64     `json:"consecutive_failures"`
-	LastFailureTime  time.Time     `json:"last_failure_time,omitempty"`
-	LastSuccessTime  time.Time     `json:"last_success_time,omitempty"`
-	NextRetryTime    time.Time     `json:"next_retry_time,omitempty"`
+	LastFailureTime      time.Time `json:"last_failure_time,omitempty"`
+	LastSuccessTime      time.Time `json:"last_success_time,omitempty"`
+	NextRetryTime        time.Time `json:"next_retry_time,omitempty"`
 }
 
 // DefaultCircuitBreaker implements a circuit breaker with configurable thresholds
 type DefaultCircuitBreaker struct {
 	config CircuitBreakerConfig
-	
-	state              int32 // 0=closed, 1=open, 2=half-open
-	requests           int64
-	totalSuccesses     int64
-	totalFailures      int64
+
+	state                int32 // 0=closed, 1=open, 2=half-open
+	requests             int64
+	totalSuccesses       int64
+	totalFailures        int64
 	consecutiveSuccesses int64
 	consecutiveFailures  int64
-	lastFailureTime    time.Time
-	lastSuccessTime    time.Time
-	nextRetryTime      time.Time
-	halfOpenRequests   int32
-	
+	lastFailureTime      time.Time
+	lastSuccessTime      time.Time
+	nextRetryTime        time.Time
+	halfOpenRequests     int32
+
 	mu sync.RWMutex
 }
 
@@ -94,7 +94,7 @@ func NewDefaultCircuitBreaker(config CircuitBreakerConfig) *DefaultCircuitBreake
 	if config.MaxHalfOpenRequests <= 0 {
 		config.MaxHalfOpenRequests = 1
 	}
-	
+
 	return &DefaultCircuitBreaker{
 		config: config,
 		state:  0, // Start closed
@@ -104,7 +104,7 @@ func NewDefaultCircuitBreaker(config CircuitBreakerConfig) *DefaultCircuitBreake
 // Call executes the function if the circuit allows it
 func (cb *DefaultCircuitBreaker) Call(ctx context.Context, fn func() error) error {
 	state := atomic.LoadInt32(&cb.state)
-	
+
 	switch state {
 	case 0: // Closed
 		return cb.callClosed(fn)
@@ -119,18 +119,18 @@ func (cb *DefaultCircuitBreaker) Call(ctx context.Context, fn func() error) erro
 
 func (cb *DefaultCircuitBreaker) callClosed(fn func() error) error {
 	err := fn()
-	
+
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
-	
+
 	atomic.AddInt64(&cb.requests, 1)
-	
+
 	if err != nil {
 		atomic.AddInt64(&cb.totalFailures, 1)
 		atomic.AddInt64(&cb.consecutiveFailures, 1)
 		atomic.StoreInt64(&cb.consecutiveSuccesses, 0)
 		cb.lastFailureTime = time.Now()
-		
+
 		// Check if we should open the circuit
 		if cb.consecutiveFailures >= int64(cb.config.FailureThreshold) {
 			cb.setState(1) // Open
@@ -142,7 +142,7 @@ func (cb *DefaultCircuitBreaker) callClosed(fn func() error) error {
 		atomic.StoreInt64(&cb.consecutiveFailures, 0)
 		cb.lastSuccessTime = time.Now()
 	}
-	
+
 	return err
 }
 
@@ -150,7 +150,7 @@ func (cb *DefaultCircuitBreaker) callOpen(fn func() error) error {
 	cb.mu.RLock()
 	nextRetry := cb.nextRetryTime
 	cb.mu.RUnlock()
-	
+
 	// Check if timeout has passed
 	if time.Now().After(nextRetry) {
 		// Try to move to half-open
@@ -162,7 +162,7 @@ func (cb *DefaultCircuitBreaker) callOpen(fn func() error) error {
 			return cb.callHalfOpen(fn)
 		}
 	}
-	
+
 	return ErrCircuitOpen
 }
 
@@ -174,19 +174,19 @@ func (cb *DefaultCircuitBreaker) callHalfOpen(fn func() error) error {
 		return ErrTooManyRequests
 	}
 	defer atomic.AddInt32(&cb.halfOpenRequests, -1)
-	
+
 	err := fn()
-	
+
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
-	
+
 	atomic.AddInt64(&cb.requests, 1)
-	
+
 	if err != nil {
 		atomic.AddInt64(&cb.totalFailures, 1)
 		atomic.StoreInt64(&cb.consecutiveSuccesses, 0)
 		cb.lastFailureTime = time.Now()
-		
+
 		// Move back to open
 		cb.setState(1) // Open
 		cb.nextRetryTime = time.Now().Add(cb.config.Timeout)
@@ -194,14 +194,14 @@ func (cb *DefaultCircuitBreaker) callHalfOpen(fn func() error) error {
 		atomic.AddInt64(&cb.totalSuccesses, 1)
 		atomic.AddInt64(&cb.consecutiveSuccesses, 1)
 		cb.lastSuccessTime = time.Now()
-		
+
 		// Check if we should close the circuit
 		if cb.consecutiveSuccesses >= int64(cb.config.SuccessThreshold) {
 			cb.setState(0) // Closed
 			atomic.StoreInt64(&cb.consecutiveFailures, 0)
 		}
 	}
-	
+
 	return err
 }
 
@@ -224,22 +224,22 @@ func (cb *DefaultCircuitBreaker) GetState() string {
 func (cb *DefaultCircuitBreaker) GetStats() *CircuitStats {
 	cb.mu.RLock()
 	defer cb.mu.RUnlock()
-	
+
 	stats := &CircuitStats{
 		State:                cb.GetState(),
-		Requests:            atomic.LoadInt64(&cb.requests),
-		TotalSuccesses:      atomic.LoadInt64(&cb.totalSuccesses),
-		TotalFailures:       atomic.LoadInt64(&cb.totalFailures),
+		Requests:             atomic.LoadInt64(&cb.requests),
+		TotalSuccesses:       atomic.LoadInt64(&cb.totalSuccesses),
+		TotalFailures:        atomic.LoadInt64(&cb.totalFailures),
 		ConsecutiveSuccesses: atomic.LoadInt64(&cb.consecutiveSuccesses),
 		ConsecutiveFailures:  atomic.LoadInt64(&cb.consecutiveFailures),
-		LastFailureTime:     cb.lastFailureTime,
-		LastSuccessTime:     cb.lastSuccessTime,
+		LastFailureTime:      cb.lastFailureTime,
+		LastSuccessTime:      cb.lastSuccessTime,
 	}
-	
+
 	if cb.GetState() == StateOpen {
 		stats.NextRetryTime = cb.nextRetryTime
 	}
-	
+
 	return stats
 }
 
@@ -247,9 +247,9 @@ func (cb *DefaultCircuitBreaker) GetStats() *CircuitStats {
 func (cb *DefaultCircuitBreaker) Reset() {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
-	
+
 	oldState := cb.GetState()
-	
+
 	atomic.StoreInt32(&cb.state, 0) // Closed
 	atomic.StoreInt64(&cb.requests, 0)
 	atomic.StoreInt64(&cb.totalSuccesses, 0)
@@ -260,7 +260,7 @@ func (cb *DefaultCircuitBreaker) Reset() {
 	cb.lastFailureTime = time.Time{}
 	cb.lastSuccessTime = time.Time{}
 	cb.nextRetryTime = time.Time{}
-	
+
 	if cb.config.OnStateChange != nil && oldState != StateClosed {
 		cb.config.OnStateChange(oldState, StateClosed)
 	}
@@ -268,11 +268,11 @@ func (cb *DefaultCircuitBreaker) Reset() {
 
 func (cb *DefaultCircuitBreaker) setState(newState int32) {
 	oldStateInt := atomic.SwapInt32(&cb.state, newState)
-	
+
 	if cb.config.OnStateChange != nil {
 		oldState := ""
 		newStateStr := ""
-		
+
 		switch oldStateInt {
 		case 0:
 			oldState = StateClosed
@@ -281,7 +281,7 @@ func (cb *DefaultCircuitBreaker) setState(newState int32) {
 		case 2:
 			oldState = StateHalfOpen
 		}
-		
+
 		switch newState {
 		case 0:
 			newStateStr = StateClosed
@@ -290,7 +290,7 @@ func (cb *DefaultCircuitBreaker) setState(newState int32) {
 		case 2:
 			newStateStr = StateHalfOpen
 		}
-		
+
 		if oldState != newStateStr {
 			cb.config.OnStateChange(oldState, newStateStr)
 		}
@@ -317,23 +317,23 @@ func (m *CircuitBreakerManager) GetBreaker(key string) CircuitBreaker {
 	m.mu.RLock()
 	breaker, exists := m.breakers[key]
 	m.mu.RUnlock()
-	
+
 	if exists {
 		return breaker
 	}
-	
+
 	// Create new breaker
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	// Double-check after acquiring write lock
 	if breaker, exists := m.breakers[key]; exists {
 		return breaker
 	}
-	
+
 	breaker = NewDefaultCircuitBreaker(m.config)
 	m.breakers[key] = breaker
-	
+
 	return breaker
 }
 
@@ -347,12 +347,12 @@ func (m *CircuitBreakerManager) Call(ctx context.Context, key string, fn func() 
 func (m *CircuitBreakerManager) GetAllStats() map[string]*CircuitStats {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	stats := make(map[string]*CircuitStats)
 	for key, breaker := range m.breakers {
 		stats[key] = breaker.GetStats()
 	}
-	
+
 	return stats
 }
 
@@ -361,7 +361,7 @@ func (m *CircuitBreakerManager) Reset(key string) {
 	m.mu.RLock()
 	breaker, exists := m.breakers[key]
 	m.mu.RUnlock()
-	
+
 	if exists {
 		breaker.Reset()
 	}
@@ -371,7 +371,7 @@ func (m *CircuitBreakerManager) Reset(key string) {
 func (m *CircuitBreakerManager) ResetAll() {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	for _, breaker := range m.breakers {
 		breaker.Reset()
 	}
@@ -406,16 +406,16 @@ func (p *ProviderWithCircuitBreaker) GetAuthURL(state string, pkce *PKCEChalleng
 func (p *ProviderWithCircuitBreaker) Exchange(ctx context.Context, code string, pkce *PKCEChallenge) (*Token, error) {
 	var token *Token
 	var exchangeErr error
-	
+
 	err := p.breaker.Call(ctx, func() error {
 		token, exchangeErr = p.provider.Exchange(ctx, code, pkce)
 		return exchangeErr
 	})
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return token, nil
 }
 
@@ -423,16 +423,16 @@ func (p *ProviderWithCircuitBreaker) Exchange(ctx context.Context, code string, 
 func (p *ProviderWithCircuitBreaker) RefreshToken(ctx context.Context, refreshToken string) (*Token, error) {
 	var token *Token
 	var refreshErr error
-	
+
 	err := p.breaker.Call(ctx, func() error {
 		token, refreshErr = p.provider.RefreshToken(ctx, refreshToken)
 		return refreshErr
 	})
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return token, nil
 }
 
@@ -440,16 +440,16 @@ func (p *ProviderWithCircuitBreaker) RefreshToken(ctx context.Context, refreshTo
 func (p *ProviderWithCircuitBreaker) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
 	var userInfo *UserInfo
 	var infoErr error
-	
+
 	err := p.breaker.Call(ctx, func() error {
 		userInfo, infoErr = p.provider.GetUserInfo(ctx, accessToken)
 		return infoErr
 	})
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return userInfo, nil
 }
 

@@ -41,7 +41,7 @@
 //	// OAuth with custom prefix
 //	err := oauth.WithPrefix("MYAPP_OAUTH_").Init()
 //
-//	// Database with custom prefix  
+//	// Database with custom prefix
 //	err := database.WithPrefix("MYAPP_DB_").Init()
 //
 // # Supported Types
@@ -143,7 +143,7 @@
 //
 // All beaver-kit packages use this config system internally:
 //   - OAuth: BEAVER_OAUTH_* variables with oauth.WithPrefix() support
-//   - Database: BEAVER_DB_* variables with database.WithPrefix() support  
+//   - Database: BEAVER_DB_* variables with database.WithPrefix() support
 //   - Cache: BEAVER_CACHE_* variables with cache.WithPrefix() support
 //   - Slack: BEAVER_SLACK_* variables with slack.WithPrefix() support
 //

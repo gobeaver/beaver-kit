@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
-	
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -24,7 +24,7 @@ type Config struct {
 	Password string
 	Database int
 	URL      string
-	
+
 	// Pool settings
 	MaxRetries      int
 	PoolSize        int
@@ -32,13 +32,13 @@ type Config struct {
 	MaxIdleConns    int
 	ConnMaxLifetime time.Duration
 	ConnMaxIdleTime time.Duration
-	
+
 	// TLS
 	UseTLS   bool
 	CertFile string
 	KeyFile  string
 	CAFile   string
-	
+
 	// Common
 	KeyPrefix string
 	Namespace string
@@ -52,7 +52,7 @@ func New(cfg Config) (*RedisCache, error) {
 		Password: cfg.Password,
 		DB:       cfg.Database,
 	}
-	
+
 	// Use URL if provided
 	if cfg.URL != "" {
 		opt, err := redis.ParseURL(cfg.URL)
@@ -69,7 +69,7 @@ func New(cfg Config) (*RedisCache, error) {
 			opts.TLSConfig = opt.TLSConfig
 		}
 	}
-	
+
 	// Apply pool settings
 	if cfg.MaxRetries > 0 {
 		opts.MaxRetries = cfg.MaxRetries
@@ -89,13 +89,13 @@ func New(cfg Config) (*RedisCache, error) {
 	if cfg.ConnMaxIdleTime > 0 {
 		opts.ConnMaxIdleTime = cfg.ConnMaxIdleTime
 	}
-	
+
 	// Configure TLS if enabled
 	if cfg.UseTLS && opts.TLSConfig == nil {
 		tlsConfig := &tls.Config{
 			MinVersion: tls.VersionTLS12,
 		}
-		
+
 		if cfg.CertFile != "" && cfg.KeyFile != "" {
 			cert, err := tls.LoadX509KeyPair(cfg.CertFile, cfg.KeyFile)
 			if err != nil {
@@ -103,21 +103,21 @@ func New(cfg Config) (*RedisCache, error) {
 			}
 			tlsConfig.Certificates = []tls.Certificate{cert}
 		}
-		
+
 		opts.TLSConfig = tlsConfig
 	}
-	
+
 	// Create client
 	client := redis.NewUniversalClient(opts)
-	
+
 	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	if err := client.Ping(ctx).Err(); err != nil {
 		return nil, fmt.Errorf("failed to connect to redis: %w", err)
 	}
-	
+
 	// Combine prefix and namespace
 	prefix := cfg.KeyPrefix
 	if cfg.Namespace != "" {
@@ -127,7 +127,7 @@ func New(cfg Config) (*RedisCache, error) {
 			prefix = cfg.Namespace + ":"
 		}
 	}
-	
+
 	return &RedisCache{
 		client:    client,
 		keyPrefix: prefix,
@@ -175,14 +175,14 @@ func (rc *RedisCache) Clear(ctx context.Context) error {
 		// Without prefix, we can't safely clear
 		return errors.New("cannot clear all keys without a prefix")
 	}
-	
+
 	// Use SCAN to find all keys with prefix
 	iter := rc.client.Scan(ctx, 0, rc.keyPrefix+"*", 0).Iterator()
 	var keys []string
-	
+
 	for iter.Next(ctx) {
 		keys = append(keys, iter.Val())
-		
+
 		// Delete in batches of 1000
 		if len(keys) >= 1000 {
 			if err := rc.client.Del(ctx, keys...).Err(); err != nil {
@@ -191,16 +191,16 @@ func (rc *RedisCache) Clear(ctx context.Context) error {
 			keys = keys[:0]
 		}
 	}
-	
+
 	if err := iter.Err(); err != nil {
 		return err
 	}
-	
+
 	// Delete remaining keys
 	if len(keys) > 0 {
 		return rc.client.Del(ctx, keys...).Err()
 	}
-	
+
 	return nil
 }
 
@@ -231,22 +231,22 @@ func (rc *RedisCache) Stats(ctx context.Context) (map[string]interface{}, error)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	stats := make(map[string]interface{})
 	stats["info"] = info
 	stats["key_prefix"] = rc.keyPrefix
-	
+
 	// Get pool stats if available
 	if poolStats := rc.client.PoolStats(); poolStats != nil {
 		stats["pool"] = map[string]interface{}{
-			"hits":       poolStats.Hits,
-			"misses":     poolStats.Misses,
-			"timeouts":   poolStats.Timeouts,
+			"hits":        poolStats.Hits,
+			"misses":      poolStats.Misses,
+			"timeouts":    poolStats.Timeouts,
 			"total_conns": poolStats.TotalConns,
-			"idle_conns": poolStats.IdleConns,
+			"idle_conns":  poolStats.IdleConns,
 			"stale_conns": poolStats.StaleConns,
 		}
 	}
-	
+
 	return stats, nil
 }

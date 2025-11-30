@@ -31,30 +31,30 @@ type MetricsCollector interface {
 // Metrics represents collected OAuth metrics
 type Metrics struct {
 	// Request counts
-	AuthRequests      MetricCounter            `json:"auth_requests"`
-	TokenExchanges    MetricCounter            `json:"token_exchanges"`
-	TokenRefreshes    MetricCounter            `json:"token_refreshes"`
-	UserInfoRequests  MetricCounter            `json:"user_info_requests"`
-	
+	AuthRequests     MetricCounter `json:"auth_requests"`
+	TokenExchanges   MetricCounter `json:"token_exchanges"`
+	TokenRefreshes   MetricCounter `json:"token_refreshes"`
+	UserInfoRequests MetricCounter `json:"user_info_requests"`
+
 	// Error counts
-	Errors            map[string]MetricCounter `json:"errors"`
-	
+	Errors map[string]MetricCounter `json:"errors"`
+
 	// Rate limiting
-	RateLimitHits     MetricCounter            `json:"rate_limit_hits"`
-	
+	RateLimitHits MetricCounter `json:"rate_limit_hits"`
+
 	// Performance metrics
-	ResponseTimes     map[string]ResponseTime  `json:"response_times"`
-	
+	ResponseTimes map[string]ResponseTime `json:"response_times"`
+
 	// Provider-specific metrics
-	ProviderMetrics   map[string]*ProviderMetric `json:"provider_metrics"`
-	
+	ProviderMetrics map[string]*ProviderMetric `json:"provider_metrics"`
+
 	// System metrics
-	ActiveSessions    int64                    `json:"active_sessions"`
-	CachedTokens      int64                    `json:"cached_tokens"`
-	
+	ActiveSessions int64 `json:"active_sessions"`
+	CachedTokens   int64 `json:"cached_tokens"`
+
 	// Time window
-	StartTime         time.Time                `json:"start_time"`
-	LastResetTime     time.Time                `json:"last_reset_time"`
+	StartTime     time.Time `json:"start_time"`
+	LastResetTime time.Time `json:"last_reset_time"`
 }
 
 // MetricCounter represents a counter metric
@@ -78,14 +78,14 @@ type ResponseTime struct {
 
 // ProviderMetric represents metrics for a specific provider
 type ProviderMetric struct {
-	AuthRequests     MetricCounter   `json:"auth_requests"`
-	TokenExchanges   MetricCounter   `json:"token_exchanges"`
-	TokenRefreshes   MetricCounter   `json:"token_refreshes"`
-	UserInfoRequests MetricCounter   `json:"user_info_requests"`
-	Errors           int64           `json:"errors"`
-	AverageLatency   time.Duration   `json:"average_latency"`
-	LastError        time.Time       `json:"last_error,omitempty"`
-	LastSuccess      time.Time       `json:"last_success,omitempty"`
+	AuthRequests     MetricCounter `json:"auth_requests"`
+	TokenExchanges   MetricCounter `json:"token_exchanges"`
+	TokenRefreshes   MetricCounter `json:"token_refreshes"`
+	UserInfoRequests MetricCounter `json:"user_info_requests"`
+	Errors           int64         `json:"errors"`
+	AverageLatency   time.Duration `json:"average_latency"`
+	LastError        time.Time     `json:"last_error,omitempty"`
+	LastSuccess      time.Time     `json:"last_success,omitempty"`
 }
 
 // DefaultMetricsCollector implements MetricsCollector with in-memory storage
@@ -113,7 +113,7 @@ func NewDefaultMetricsCollector() *DefaultMetricsCollector {
 func (c *DefaultMetricsCollector) RecordAuthRequest(provider string, success bool, duration time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	// Update global counter
 	atomic.AddInt64(&c.metrics.AuthRequests.Total, 1)
 	if success {
@@ -121,7 +121,7 @@ func (c *DefaultMetricsCollector) RecordAuthRequest(provider string, success boo
 	} else {
 		atomic.AddInt64(&c.metrics.AuthRequests.Failed, 1)
 	}
-	
+
 	// Update provider-specific metrics
 	c.ensureProviderMetric(provider)
 	pm := c.metrics.ProviderMetrics[provider]
@@ -133,7 +133,7 @@ func (c *DefaultMetricsCollector) RecordAuthRequest(provider string, success boo
 		atomic.AddInt64(&pm.AuthRequests.Failed, 1)
 		pm.LastError = time.Now()
 	}
-	
+
 	// Record response time
 	c.recordDuration("auth_request", duration)
 	c.recordDuration("auth_request_"+provider, duration)
@@ -143,7 +143,7 @@ func (c *DefaultMetricsCollector) RecordAuthRequest(provider string, success boo
 func (c *DefaultMetricsCollector) RecordTokenExchange(provider string, success bool, duration time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	// Update global counter
 	atomic.AddInt64(&c.metrics.TokenExchanges.Total, 1)
 	if success {
@@ -151,7 +151,7 @@ func (c *DefaultMetricsCollector) RecordTokenExchange(provider string, success b
 	} else {
 		atomic.AddInt64(&c.metrics.TokenExchanges.Failed, 1)
 	}
-	
+
 	// Update provider-specific metrics
 	c.ensureProviderMetric(provider)
 	pm := c.metrics.ProviderMetrics[provider]
@@ -163,7 +163,7 @@ func (c *DefaultMetricsCollector) RecordTokenExchange(provider string, success b
 		atomic.AddInt64(&pm.TokenExchanges.Failed, 1)
 		pm.LastError = time.Now()
 	}
-	
+
 	// Record response time
 	c.recordDuration("token_exchange", duration)
 	c.recordDuration("token_exchange_"+provider, duration)
@@ -173,7 +173,7 @@ func (c *DefaultMetricsCollector) RecordTokenExchange(provider string, success b
 func (c *DefaultMetricsCollector) RecordTokenRefresh(provider string, success bool, duration time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	// Update global counter
 	atomic.AddInt64(&c.metrics.TokenRefreshes.Total, 1)
 	if success {
@@ -181,7 +181,7 @@ func (c *DefaultMetricsCollector) RecordTokenRefresh(provider string, success bo
 	} else {
 		atomic.AddInt64(&c.metrics.TokenRefreshes.Failed, 1)
 	}
-	
+
 	// Update provider-specific metrics
 	c.ensureProviderMetric(provider)
 	pm := c.metrics.ProviderMetrics[provider]
@@ -193,7 +193,7 @@ func (c *DefaultMetricsCollector) RecordTokenRefresh(provider string, success bo
 		atomic.AddInt64(&pm.TokenRefreshes.Failed, 1)
 		pm.LastError = time.Now()
 	}
-	
+
 	// Record response time
 	c.recordDuration("token_refresh", duration)
 	c.recordDuration("token_refresh_"+provider, duration)
@@ -203,7 +203,7 @@ func (c *DefaultMetricsCollector) RecordTokenRefresh(provider string, success bo
 func (c *DefaultMetricsCollector) RecordUserInfoRequest(provider string, success bool, duration time.Duration) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	// Update global counter
 	atomic.AddInt64(&c.metrics.UserInfoRequests.Total, 1)
 	if success {
@@ -211,7 +211,7 @@ func (c *DefaultMetricsCollector) RecordUserInfoRequest(provider string, success
 	} else {
 		atomic.AddInt64(&c.metrics.UserInfoRequests.Failed, 1)
 	}
-	
+
 	// Update provider-specific metrics
 	c.ensureProviderMetric(provider)
 	pm := c.metrics.ProviderMetrics[provider]
@@ -223,7 +223,7 @@ func (c *DefaultMetricsCollector) RecordUserInfoRequest(provider string, success
 		atomic.AddInt64(&pm.UserInfoRequests.Failed, 1)
 		pm.LastError = time.Now()
 	}
-	
+
 	// Record response time
 	c.recordDuration("user_info", duration)
 	c.recordDuration("user_info_"+provider, duration)
@@ -238,10 +238,10 @@ func (c *DefaultMetricsCollector) RecordRateLimitHit(key string) {
 func (c *DefaultMetricsCollector) RecordError(provider string, operation string, errorType string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	// Create error key
 	errorKey := fmt.Sprintf("%s_%s_%s", provider, operation, errorType)
-	
+
 	// Update error counter
 	if counter, exists := c.metrics.Errors[errorKey]; exists {
 		atomic.AddInt64(&counter.Total, 1)
@@ -249,7 +249,7 @@ func (c *DefaultMetricsCollector) RecordError(provider string, operation string,
 	} else {
 		c.metrics.Errors[errorKey] = MetricCounter{Total: 1}
 	}
-	
+
 	// Update provider error count
 	c.ensureProviderMetric(provider)
 	atomic.AddInt64(&c.metrics.ProviderMetrics[provider].Errors, 1)
@@ -260,14 +260,14 @@ func (c *DefaultMetricsCollector) RecordError(provider string, operation string,
 func (c *DefaultMetricsCollector) GetMetrics() *Metrics {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	// Calculate response time statistics
 	for key, durations := range c.durations {
 		if len(durations) > 0 {
 			c.metrics.ResponseTimes[key] = calculateResponseTimeStats(durations)
 		}
 	}
-	
+
 	// Calculate provider average latencies
 	for provider, pm := range c.metrics.ProviderMetrics {
 		key := "token_exchange_" + provider
@@ -279,27 +279,27 @@ func (c *DefaultMetricsCollector) GetMetrics() *Metrics {
 			pm.AverageLatency = total / time.Duration(len(durations))
 		}
 	}
-	
+
 	// Create a copy of metrics to avoid race conditions
 	metricsCopy := *c.metrics
-	
+
 	// Deep copy maps
 	metricsCopy.Errors = make(map[string]MetricCounter)
 	for k, v := range c.metrics.Errors {
 		metricsCopy.Errors[k] = v
 	}
-	
+
 	metricsCopy.ResponseTimes = make(map[string]ResponseTime)
 	for k, v := range c.metrics.ResponseTimes {
 		metricsCopy.ResponseTimes[k] = v
 	}
-	
+
 	metricsCopy.ProviderMetrics = make(map[string]*ProviderMetric)
 	for k, v := range c.metrics.ProviderMetrics {
 		pmCopy := *v
 		metricsCopy.ProviderMetrics[k] = &pmCopy
 	}
-	
+
 	return &metricsCopy
 }
 
@@ -307,7 +307,7 @@ func (c *DefaultMetricsCollector) GetMetrics() *Metrics {
 func (c *DefaultMetricsCollector) Reset() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	c.metrics = &Metrics{
 		Errors:          make(map[string]MetricCounter),
 		ResponseTimes:   make(map[string]ResponseTime),
@@ -331,7 +331,7 @@ func (c *DefaultMetricsCollector) recordDuration(key string, duration time.Durat
 		c.durations[key] = make([]time.Duration, 0, 100)
 	}
 	c.durations[key] = append(c.durations[key], duration)
-	
+
 	// Keep only last 1000 samples to avoid memory issues
 	if len(c.durations[key]) > 1000 {
 		c.durations[key] = c.durations[key][100:]
@@ -342,12 +342,12 @@ func calculateResponseTimeStats(durations []time.Duration) ResponseTime {
 	if len(durations) == 0 {
 		return ResponseTime{}
 	}
-	
+
 	// Calculate basic stats
 	total := time.Duration(0)
 	min := durations[0]
 	max := durations[0]
-	
+
 	for _, d := range durations {
 		total += d
 		if d < min {
@@ -357,13 +357,13 @@ func calculateResponseTimeStats(durations []time.Duration) ResponseTime {
 			max = d
 		}
 	}
-	
+
 	average := total / time.Duration(len(durations))
-	
+
 	// Sort for percentiles (simple implementation)
 	sorted := make([]time.Duration, len(durations))
 	copy(sorted, durations)
-	
+
 	// Simple bubble sort for small datasets
 	for i := 0; i < len(sorted); i++ {
 		for j := i + 1; j < len(sorted); j++ {
@@ -372,12 +372,12 @@ func calculateResponseTimeStats(durations []time.Duration) ResponseTime {
 			}
 		}
 	}
-	
+
 	// Calculate percentiles
 	p50 := sorted[len(sorted)*50/100]
 	p95 := sorted[len(sorted)*95/100]
 	p99 := sorted[len(sorted)*99/100]
-	
+
 	return ResponseTime{
 		Count:   int64(len(durations)),
 		Total:   total,
@@ -400,11 +400,11 @@ type MonitoringService struct {
 
 // MonitoringConfig configures the monitoring service
 type MonitoringConfig struct {
-	Enabled          bool          `env:"OAUTH_MONITORING_ENABLED,default:true"`
-	MetricsInterval  time.Duration `env:"OAUTH_METRICS_INTERVAL,default:1m"`
-	RetentionPeriod  time.Duration `env:"OAUTH_METRICS_RETENTION,default:24h"`
-	ExportEndpoint   string        `env:"OAUTH_METRICS_ENDPOINT"`
-	ExportFormat     string        `env:"OAUTH_METRICS_FORMAT,default:json"`
+	Enabled         bool          `env:"OAUTH_MONITORING_ENABLED,default:true"`
+	MetricsInterval time.Duration `env:"OAUTH_METRICS_INTERVAL,default:1m"`
+	RetentionPeriod time.Duration `env:"OAUTH_METRICS_RETENTION,default:24h"`
+	ExportEndpoint  string        `env:"OAUTH_METRICS_ENDPOINT"`
+	ExportFormat    string        `env:"OAUTH_METRICS_FORMAT,default:json"`
 }
 
 // NewMonitoringService creates a new monitoring service
@@ -421,13 +421,13 @@ func (s *MonitoringService) Start() {
 	if !s.config.Enabled {
 		return
 	}
-	
+
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
 		ticker := time.NewTicker(s.config.MetricsInterval)
 		defer ticker.Stop()
-		
+
 		for {
 			select {
 			case <-ticker.C:
@@ -455,10 +455,10 @@ func (s *MonitoringService) exportMetrics() {
 	if s.config.ExportEndpoint == "" {
 		return
 	}
-	
+
 	// Get metrics for export
 	_ = s.collector.GetMetrics()
-	
+
 	// Export metrics based on format
 	switch s.config.ExportFormat {
 	case "json":
@@ -489,9 +489,9 @@ func (s *InstrumentedService) GetAuthURL(ctx context.Context) (string, error) {
 	start := time.Now()
 	url, err := s.service.GetAuthURL(ctx)
 	duration := time.Since(start)
-	
+
 	s.collector.RecordAuthRequest(s.service.provider.Name(), err == nil && url != "", duration)
-	
+
 	return url, err
 }
 
@@ -500,14 +500,14 @@ func (s *InstrumentedService) Exchange(ctx context.Context, code, state string) 
 	start := time.Now()
 	token, err := s.service.Exchange(ctx, code, state)
 	duration := time.Since(start)
-	
+
 	success := err == nil
 	s.collector.RecordTokenExchange(s.service.provider.Name(), success, duration)
-	
+
 	if err != nil {
 		s.collector.RecordError(s.service.provider.Name(), "exchange", getErrorType(err))
 	}
-	
+
 	return token, err
 }
 

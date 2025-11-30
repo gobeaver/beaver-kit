@@ -56,27 +56,27 @@ func (b *Builder) New() (*Service, error) {
 
 // Service represents a Slack notification service
 type Service struct {
-	webhookURL     string
-	httpClient     *http.Client
-	defaultOpts    *MessageOptions
-	maxRetries     int
-	retryDelay     time.Duration
-	retryMaxDelay  time.Duration
-	retryJitter    bool
-	debug          bool
-	
+	webhookURL    string
+	httpClient    *http.Client
+	defaultOpts   *MessageOptions
+	maxRetries    int
+	retryDelay    time.Duration
+	retryMaxDelay time.Duration
+	retryJitter   bool
+	debug         bool
+
 	// Production features
 	rateLimiter    RateLimiter
 	circuitBreaker *CircuitBreaker
 	metrics        *Metrics
 	logger         *Logger
 	requestLogger  *RequestLogger
-	
+
 	// Security
 	maxMessageSize int
 	sanitizeInput  bool
 	redactErrors   bool
-	
+
 	// State management
 	mu             sync.RWMutex
 	shutdown       chan struct{}
@@ -472,13 +472,13 @@ func (s *Service) SendErrorWithContext(ctx context.Context, err error) (string, 
 	if err == nil {
 		return "", nil
 	}
-	
+
 	// Redact sensitive information if enabled
 	errorMsg := err.Error()
 	if s.redactErrors {
 		errorMsg = s.sanitizeErrorMessage(errorMsg)
 	}
-	
+
 	formattedMessage := fmt.Sprintf("❌ *Error*\n```\n%v\n```", errorMsg)
 	return s.SendWithContext(ctx, formattedMessage, nil)
 }
@@ -490,14 +490,14 @@ func (s *Service) sanitizeErrorMessage(msg string) string {
 		"token", "secret", "password", "key", "credential",
 		"auth", "bearer", "api_key", "access_token",
 	}
-	
+
 	for _, pattern := range patterns {
 		if strings.Contains(strings.ToLower(msg), pattern) {
 			// Replace the value after the pattern
 			msg = sanitizePattern(msg, pattern)
 		}
 	}
-	
+
 	return msg
 }
 
@@ -508,23 +508,23 @@ func sanitizePattern(msg, pattern string) string {
 	if idx == -1 {
 		return msg
 	}
-	
+
 	// Find the value after the pattern (usually after '=' or ':')
 	valueStart := idx + len(pattern)
 	for valueStart < len(msg) && (msg[valueStart] == ' ' || msg[valueStart] == '=' || msg[valueStart] == ':') {
 		valueStart++
 	}
-	
+
 	if valueStart >= len(msg) {
 		return msg
 	}
-	
+
 	// Find the end of the value
 	valueEnd := valueStart
 	for valueEnd < len(msg) && msg[valueEnd] != ' ' && msg[valueEnd] != ',' && msg[valueEnd] != '\n' {
 		valueEnd++
 	}
-	
+
 	// Replace the value with REDACTED
 	return msg[:valueStart] + "REDACTED" + msg[valueEnd:]
 }
@@ -598,7 +598,7 @@ func (s *Service) SendWithContext(ctx context.Context, message string, opts *Mes
 	// Send with retry and circuit breaker
 	start := time.Now()
 	resp, err := s.sendWithRetry(ctx, payload)
-	
+
 	if s.metrics != nil {
 		if err == nil {
 			s.metrics.RecordSuccess(time.Since(start))
@@ -627,13 +627,13 @@ func (s *Service) validateInput(message string) error {
 func (s *Service) sanitizeMessage(message string) string {
 	// HTML escape to prevent injection
 	message = html.EscapeString(message)
-	
+
 	// Unescape common safe characters for readability
 	message = strings.ReplaceAll(message, "&lt;", "<")
 	message = strings.ReplaceAll(message, "&gt;", ">")
 	message = strings.ReplaceAll(message, "&#39;", "'")
 	message = strings.ReplaceAll(message, "&quot;", "\"")
-	
+
 	return message
 }
 
@@ -694,7 +694,7 @@ func (s *Service) SendRichMessage(ctx context.Context, msg *RichMessage) (string
 	// Send with retry and circuit breaker
 	start := time.Now()
 	resp, err := s.sendWithRetry(ctx, payload)
-	
+
 	if s.metrics != nil {
 		if err == nil {
 			s.metrics.RecordSuccess(time.Since(start))

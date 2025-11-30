@@ -10,19 +10,19 @@ import (
 
 // Middleware provides HTTP middleware for OAuth operations
 type Middleware struct {
-	service     *Service
+	service      *Service
 	multiService *MultiProviderService
-	rateLimiter RateLimiter
-	config      MiddlewareConfig
+	rateLimiter  RateLimiter
+	config       MiddlewareConfig
 }
 
 // MiddlewareConfig configures the OAuth middleware
 type MiddlewareConfig struct {
 	// Security headers
 	EnableSecurityHeaders bool `env:"OAUTH_SECURITY_HEADERS,default:true"`
-	EnableHSTS           bool `env:"OAUTH_HSTS_ENABLED,default:true"`
-	HSTSMaxAge           int  `env:"OAUTH_HSTS_MAX_AGE,default:31536000"`
-	
+	EnableHSTS            bool `env:"OAUTH_HSTS_ENABLED,default:true"`
+	HSTSMaxAge            int  `env:"OAUTH_HSTS_MAX_AGE,default:31536000"`
+
 	// CORS configuration
 	EnableCORS       bool     `env:"OAUTH_CORS_ENABLED,default:true"`
 	AllowedOrigins   []string `env:"OAUTH_CORS_ORIGINS"`
@@ -30,24 +30,24 @@ type MiddlewareConfig struct {
 	AllowedHeaders   []string `env:"OAUTH_CORS_HEADERS,default:Content-Type,Authorization"`
 	AllowCredentials bool     `env:"OAUTH_CORS_CREDENTIALS,default:true"`
 	MaxAge           int      `env:"OAUTH_CORS_MAX_AGE,default:3600"`
-	
+
 	// Rate limiting
 	EnableRateLimiting bool          `env:"OAUTH_RATE_LIMITING,default:true"`
-	RateLimit         int           `env:"OAUTH_RATE_LIMIT,default:100"`
-	RateInterval      time.Duration `env:"OAUTH_RATE_INTERVAL,default:1m"`
-	RateBurstSize     int           `env:"OAUTH_RATE_BURST,default:200"`
-	
+	RateLimit          int           `env:"OAUTH_RATE_LIMIT,default:100"`
+	RateInterval       time.Duration `env:"OAUTH_RATE_INTERVAL,default:1m"`
+	RateBurstSize      int           `env:"OAUTH_RATE_BURST,default:200"`
+
 	// Request logging
-	EnableLogging      bool `env:"OAUTH_REQUEST_LOGGING,default:true"`
-	LogSensitiveData   bool `env:"OAUTH_LOG_SENSITIVE,default:false"`
-	
+	EnableLogging    bool `env:"OAUTH_REQUEST_LOGGING,default:true"`
+	LogSensitiveData bool `env:"OAUTH_LOG_SENSITIVE,default:false"`
+
 	// Timeout configuration
-	RequestTimeout     time.Duration `env:"OAUTH_REQUEST_TIMEOUT,default:30s"`
-	IdleTimeout        time.Duration `env:"OAUTH_IDLE_TIMEOUT,default:120s"`
-	
+	RequestTimeout time.Duration `env:"OAUTH_REQUEST_TIMEOUT,default:30s"`
+	IdleTimeout    time.Duration `env:"OAUTH_IDLE_TIMEOUT,default:120s"`
+
 	// Security
-	RequireHTTPS       bool `env:"OAUTH_REQUIRE_HTTPS,default:true"`
-	TrustedProxies     []string `env:"OAUTH_TRUSTED_PROXIES"`
+	RequireHTTPS   bool     `env:"OAUTH_REQUIRE_HTTPS,default:true"`
+	TrustedProxies []string `env:"OAUTH_TRUSTED_PROXIES"`
 }
 
 // NewMiddleware creates a new OAuth middleware
@@ -55,12 +55,12 @@ func NewMiddleware(config MiddlewareConfig) *Middleware {
 	var rateLimiter RateLimiter
 	if config.EnableRateLimiting {
 		rateLimiter = NewTokenBucketLimiter(RateLimiterConfig{
-			Rate:       config.RateLimit,
-			Interval:   config.RateInterval,
-			BurstSize:  config.RateBurstSize,
+			Rate:      config.RateLimit,
+			Interval:  config.RateInterval,
+			BurstSize: config.RateBurstSize,
 		})
 	}
-	
+
 	return &Middleware{
 		rateLimiter: rateLimiter,
 		config:      config,
@@ -88,35 +88,35 @@ func (m *Middleware) SecurityHeaders(next http.Handler) http.Handler {
 			w.Header().Set("X-Frame-Options", "DENY")
 			w.Header().Set("X-XSS-Protection", "1; mode=block")
 			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
-			
+
 			// Content Security Policy
-			w.Header().Set("Content-Security-Policy", 
+			w.Header().Set("Content-Security-Policy",
 				"default-src 'self'; "+
-				"script-src 'self' 'unsafe-inline'; "+
-				"style-src 'self' 'unsafe-inline'; "+
-				"img-src 'self' data: https:; "+
-				"font-src 'self' data:; "+
-				"connect-src 'self'; "+
-				"frame-ancestors 'none';")
-			
+					"script-src 'self' 'unsafe-inline'; "+
+					"style-src 'self' 'unsafe-inline'; "+
+					"img-src 'self' data: https:; "+
+					"font-src 'self' data:; "+
+					"connect-src 'self'; "+
+					"frame-ancestors 'none';")
+
 			// HSTS header
 			if m.config.EnableHSTS && (r.TLS != nil || m.isFromTrustedProxy(r)) {
 				hstsValue := fmt.Sprintf("max-age=%d; includeSubDomains; preload", m.config.HSTSMaxAge)
 				w.Header().Set("Strict-Transport-Security", hstsValue)
 			}
-			
+
 			// Permissions Policy
-			w.Header().Set("Permissions-Policy", 
+			w.Header().Set("Permissions-Policy",
 				"accelerometer=(), "+
-				"camera=(), "+
-				"geolocation=(), "+
-				"gyroscope=(), "+
-				"magnetometer=(), "+
-				"microphone=(), "+
-				"payment=(), "+
-				"usb=()")
+					"camera=(), "+
+					"geolocation=(), "+
+					"gyroscope=(), "+
+					"magnetometer=(), "+
+					"microphone=(), "+
+					"payment=(), "+
+					"usb=()")
 		}
-		
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -128,17 +128,17 @@ func (m *Middleware) CORS(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		
+
 		origin := r.Header.Get("Origin")
-		
+
 		// Check if origin is allowed
 		if m.isOriginAllowed(origin) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
-			
+
 			if m.config.AllowCredentials {
 				w.Header().Set("Access-Control-Allow-Credentials", "true")
 			}
-			
+
 			// Handle preflight requests
 			if r.Method == "OPTIONS" {
 				w.Header().Set("Access-Control-Allow-Methods", strings.Join(m.config.AllowedMethods, ", "))
@@ -147,11 +147,11 @@ func (m *Middleware) CORS(next http.Handler) http.Handler {
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
-			
+
 			// Add headers for actual requests
 			w.Header().Set("Access-Control-Expose-Headers", "X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset")
 		}
-		
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -163,31 +163,31 @@ func (m *Middleware) RateLimit(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		
+
 		// Get rate limit key (IP address or user ID)
 		key := m.getRateLimitKey(r)
-		
+
 		// Check rate limit
 		allowed, err := m.rateLimiter.Allow(r.Context(), key)
 		if err != nil {
 			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 			return
 		}
-		
+
 		// Get status for headers
 		status, _ := m.rateLimiter.GetStatus(r.Context(), key)
 		if status != nil {
 			w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", status.Limit))
 			w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", status.Remaining))
 			w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", status.Reset.Unix()))
-			
+
 			if !allowed {
 				w.Header().Set("Retry-After", fmt.Sprintf("%d", int(status.RetryAfter.Seconds())))
 				http.Error(w, "Too Many Requests", http.StatusTooManyRequests)
 				return
 			}
 		}
-		
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -199,15 +199,15 @@ func (m *Middleware) RequestLogging(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		
+
 		start := time.Now()
-		
+
 		// Wrap response writer to capture status code
 		wrapped := &responseWriter{
 			ResponseWriter: w,
 			statusCode:     http.StatusOK,
 		}
-		
+
 		// Log request
 		logEntry := RequestLog{
 			Method:     r.Method,
@@ -217,19 +217,19 @@ func (m *Middleware) RequestLogging(next http.Handler) http.Handler {
 			RequestID:  r.Header.Get("X-Request-ID"),
 			StartTime:  start,
 		}
-		
+
 		// Add to context for later use
 		ctx := context.WithValue(r.Context(), "request_log", &logEntry)
 		r = r.WithContext(ctx)
-		
+
 		// Process request
 		next.ServeHTTP(wrapped, r)
-		
+
 		// Complete log entry
 		logEntry.StatusCode = wrapped.statusCode
 		logEntry.Duration = time.Since(start)
 		logEntry.BytesWritten = wrapped.bytesWritten
-		
+
 		// Log the request (implement actual logging based on your needs)
 		m.logRequest(logEntry)
 	})
@@ -242,7 +242,7 @@ func (m *Middleware) RequireHTTPS(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		
+
 		// Check if request is HTTPS
 		if r.TLS == nil && !m.isFromTrustedProxy(r) {
 			// Check X-Forwarded-Proto header
@@ -251,7 +251,7 @@ func (m *Middleware) RequireHTTPS(next http.Handler) http.Handler {
 				return
 			}
 		}
-		
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -263,18 +263,18 @@ func (m *Middleware) Timeout(next http.Handler) http.Handler {
 			next.ServeHTTP(w, r)
 			return
 		}
-		
+
 		ctx, cancel := context.WithTimeout(r.Context(), m.config.RequestTimeout)
 		defer cancel()
-		
+
 		r = r.WithContext(ctx)
-		
+
 		done := make(chan struct{})
 		go func() {
 			next.ServeHTTP(w, r)
 			close(done)
 		}()
-		
+
 		select {
 		case <-done:
 			// Request completed successfully
@@ -313,7 +313,7 @@ func (m *Middleware) isOriginAllowed(origin string) bool {
 	if len(m.config.AllowedOrigins) == 0 {
 		return false
 	}
-	
+
 	for _, allowed := range m.config.AllowedOrigins {
 		if allowed == "*" || allowed == origin {
 			return true
@@ -326,7 +326,7 @@ func (m *Middleware) isOriginAllowed(origin string) bool {
 			}
 		}
 	}
-	
+
 	return false
 }
 
@@ -335,7 +335,7 @@ func (m *Middleware) getRateLimitKey(r *http.Request) string {
 	if userID := r.Header.Get("X-User-ID"); userID != "" {
 		return "user:" + userID
 	}
-	
+
 	// Fall back to IP address
 	return "ip:" + m.getClientIP(r)
 }
@@ -348,18 +348,18 @@ func (m *Middleware) getClientIP(r *http.Request) string {
 			return strings.TrimSpace(parts[0])
 		}
 	}
-	
+
 	// Check X-Real-IP header
 	if xri := r.Header.Get("X-Real-IP"); xri != "" {
 		return xri
 	}
-	
+
 	// Fall back to RemoteAddr
 	ip := r.RemoteAddr
 	if colon := strings.LastIndex(ip, ":"); colon != -1 {
 		ip = ip[:colon]
 	}
-	
+
 	return ip
 }
 
@@ -367,14 +367,14 @@ func (m *Middleware) isFromTrustedProxy(r *http.Request) bool {
 	if len(m.config.TrustedProxies) == 0 {
 		return false
 	}
-	
+
 	clientIP := m.getClientIP(r)
 	for _, proxy := range m.config.TrustedProxies {
 		if proxy == clientIP {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -385,9 +385,9 @@ func (m *Middleware) logRequest(log RequestLog) {
 		// Redact sensitive information
 		log.sanitize()
 	}
-	
+
 	// Log the request (implement based on your needs)
-	// fmt.Printf("[%s] %s %s %d %v\n", 
+	// fmt.Printf("[%s] %s %s %d %v\n",
 	//     log.StartTime.Format(time.RFC3339),
 	//     log.Method,
 	//     log.Path,

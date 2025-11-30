@@ -28,10 +28,10 @@ type Provider interface {
 
 	// SupportsPKCE indicates if the provider supports PKCE
 	SupportsPKCE() bool
-	
+
 	// RevokeToken revokes an access or refresh token
 	RevokeToken(ctx context.Context, token string) error
-	
+
 	// ValidateConfig validates the provider configuration
 	ValidateConfig() error
 }
@@ -167,12 +167,12 @@ type ProviderConfig struct {
 	RevokeURL    string     `json:"revoke_url,omitempty" env:"REVOKE_URL"`
 	HTTPClient   HTTPClient `json:"-"`
 	Debug        bool       `json:"debug,omitempty" env:"DEBUG"`
-	
+
 	// Apple-specific
 	TeamID     string `json:"team_id,omitempty" env:"APPLE_TEAM_ID"`
 	KeyID      string `json:"key_id,omitempty" env:"APPLE_KEY_ID"`
 	PrivateKey string `json:"private_key,omitempty" env:"APPLE_PRIVATE_KEY"`
-	
+
 	// Twitter-specific
 	APIVersion string `json:"api_version,omitempty" env:"TWITTER_API_VERSION"`
 }

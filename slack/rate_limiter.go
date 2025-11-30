@@ -70,10 +70,10 @@ func (l *TokenBucketLimiter) Wait(ctx context.Context) error {
 
 // SlidingWindowLimiter implements sliding window rate limiting
 type SlidingWindowLimiter struct {
-	requests  []time.Time
-	limit     int
-	window    time.Duration
-	mu        sync.Mutex
+	requests []time.Time
+	limit    int
+	window   time.Duration
+	mu       sync.Mutex
 }
 
 // NewSlidingWindowLimiter creates a new sliding window rate limiter

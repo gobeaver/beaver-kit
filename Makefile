@@ -15,25 +15,34 @@ ALL_PACKAGES=./...
 
 # Default target
 .DEFAULT_GOAL := help
+.PHONY: lint
+lint: ## Run linter
+	@echo "$(GREEN)Running linter...$(NC)"
+	@which golangci-lint > /dev/null || echo "$(YELLOW)golangci-lint not installed or ran with errors. Install with: brew install golangci-lint$(NC)"
+
+	@golangci-lint run
+
+.PHONY: lint-info
+lint-info: ## Show linter error counts by type
+	@golangci-lint run 2>&1 | grep -oE '\(([a-z]+)\)$$' | sort | uniq -c | sort -rn
+
 
 .PHONY: fmt
-fmt: ## Format all Go files
-	@echo "Formatting code..."
-	@$(GOFMT) -s -w .
-	@$(GOCMD) fmt $(ALL_PACKAGES)
+fmt: ## Format code
+	@echo "$(GREEN)Formatting code...$(NC)"
+	go fmt ./...
+	@echo "$(GREEN)Code formatted$(NC)"
 
 .PHONY: vet
 vet: ## Run go vet on all packages
 	@echo "Running go vet..."
 	@$(GOVET) $(ALL_PACKAGES)
 
-.PHONY: lint
-lint: fmt vet ## Run formatting and vetting
-
 .PHONY: test
 test: ## Run all tests
 	@echo "Running tests..."
 	@$(GOTEST) -v $(ALL_PACKAGES)
+
 
 .PHONY: test-coverage
 test-coverage: ## Run tests with coverage

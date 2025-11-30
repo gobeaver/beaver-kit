@@ -20,12 +20,12 @@ const (
 
 // HealthCheck represents a health check result
 type HealthCheck struct {
-	Status      HealthStatus           `json:"status"`
-	Timestamp   time.Time              `json:"timestamp"`
-	Version     string                 `json:"version,omitempty"`
-	Uptime      time.Duration          `json:"uptime,omitempty"`
-	Checks      map[string]CheckResult `json:"checks,omitempty"`
-	Metrics     *HealthMetrics         `json:"metrics,omitempty"`
+	Status    HealthStatus           `json:"status"`
+	Timestamp time.Time              `json:"timestamp"`
+	Version   string                 `json:"version,omitempty"`
+	Uptime    time.Duration          `json:"uptime,omitempty"`
+	Checks    map[string]CheckResult `json:"checks,omitempty"`
+	Metrics   *HealthMetrics         `json:"metrics,omitempty"`
 }
 
 // CheckResult represents the result of a single health check
@@ -102,17 +102,17 @@ func (h *DefaultHealthChecker) Check(ctx context.Context) (*HealthCheck, error) 
 		Uptime:    time.Since(h.startTime),
 		Checks:    make(map[string]CheckResult),
 	}
-	
+
 	// Check session store
 	if h.service != nil || h.multiService != nil {
 		health.Checks["session_store"] = h.checkSessionStore(ctx)
 	}
-	
+
 	// Check token store
 	if h.tokenManager != nil {
 		health.Checks["token_store"] = h.checkTokenStore(ctx)
 	}
-	
+
 	// Check providers
 	if h.multiService != nil {
 		for _, provider := range h.multiService.ListProviders() {
@@ -120,12 +120,12 @@ func (h *DefaultHealthChecker) Check(ctx context.Context) (*HealthCheck, error) 
 			health.Checks[key] = h.checkProvider(ctx, provider)
 		}
 	}
-	
+
 	// Check rate limiter
 	if h.rateLimiter != nil {
 		health.Checks["rate_limiter"] = h.checkRateLimiter(ctx)
 	}
-	
+
 	// Run custom checks
 	h.mu.RLock()
 	customChecks := make(map[string]func(context.Context) error)
@@ -133,11 +133,11 @@ func (h *DefaultHealthChecker) Check(ctx context.Context) (*HealthCheck, error) 
 		customChecks[name] = check
 	}
 	h.mu.RUnlock()
-	
+
 	for name, check := range customChecks {
 		health.Checks[name] = h.runCheck(ctx, check)
 	}
-	
+
 	// Determine overall status
 	degradedCount := 0
 	unhealthyCount := 0
@@ -149,18 +149,18 @@ func (h *DefaultHealthChecker) Check(ctx context.Context) (*HealthCheck, error) 
 			unhealthyCount++
 		}
 	}
-	
+
 	if unhealthyCount > 0 {
 		health.Status = HealthStatusUnhealthy
 	} else if degradedCount > 0 {
 		health.Status = HealthStatusDegraded
 	}
-	
+
 	// Add metrics if available
 	if h.metricsCollector != nil {
 		health.Metrics = h.getHealthMetrics()
 	}
-	
+
 	return health, nil
 }
 
@@ -187,17 +187,17 @@ func (h *DefaultHealthChecker) CheckComponent(ctx context.Context, component str
 				}
 			}
 		}
-		
+
 		// Check custom checks
 		h.mu.RLock()
 		check, exists := h.customChecks[component]
 		h.mu.RUnlock()
-		
+
 		if exists {
 			result := h.runCheck(ctx, check)
 			return &result, nil
 		}
-		
+
 		return nil, fmt.Errorf("unknown component: %s", component)
 	}
 }
@@ -213,7 +213,7 @@ func (h *DefaultHealthChecker) RegisterCheck(name string, check func(context.Con
 
 func (h *DefaultHealthChecker) checkSessionStore(ctx context.Context) CheckResult {
 	start := time.Now()
-	
+
 	// Try to store and retrieve a test session
 	testKey := fmt.Sprintf("health_check_%d", time.Now().UnixNano())
 	testData := &SessionData{
@@ -222,14 +222,14 @@ func (h *DefaultHealthChecker) checkSessionStore(ctx context.Context) CheckResul
 		CreatedAt: time.Now(),
 		ExpiresAt: time.Now().Add(1 * time.Minute),
 	}
-	
+
 	var store SessionStore
 	if h.service != nil {
 		store = h.service.sessions
 	} else if h.multiService != nil {
 		store = h.multiService.sessions
 	}
-	
+
 	if store == nil {
 		return CheckResult{
 			Status:      HealthStatusUnhealthy,
@@ -238,7 +238,7 @@ func (h *DefaultHealthChecker) checkSessionStore(ctx context.Context) CheckResul
 			LastChecked: time.Now(),
 		}
 	}
-	
+
 	// Store test session
 	if err := store.Store(ctx, testKey, testData); err != nil {
 		return CheckResult{
@@ -248,7 +248,7 @@ func (h *DefaultHealthChecker) checkSessionStore(ctx context.Context) CheckResul
 			LastChecked: time.Now(),
 		}
 	}
-	
+
 	// Retrieve test session
 	if _, err := store.Retrieve(ctx, testKey); err != nil {
 		return CheckResult{
@@ -258,10 +258,10 @@ func (h *DefaultHealthChecker) checkSessionStore(ctx context.Context) CheckResul
 			LastChecked: time.Now(),
 		}
 	}
-	
+
 	// Clean up
 	store.Delete(ctx, testKey)
-	
+
 	return CheckResult{
 		Status:      HealthStatusHealthy,
 		Message:     "Session store is operational",
@@ -272,15 +272,15 @@ func (h *DefaultHealthChecker) checkSessionStore(ctx context.Context) CheckResul
 
 func (h *DefaultHealthChecker) checkTokenStore(ctx context.Context) CheckResult {
 	start := time.Now()
-	
+
 	// Try to get token stats
 	if h.tokenManager != nil {
 		stats := h.tokenManager.GetTokenStats()
-		
+
 		status := HealthStatusHealthy
 		message := fmt.Sprintf("Token store operational: %d total tokens, %d active",
 			stats.TotalTokens, stats.ActiveTokens)
-		
+
 		// Check for high expired token ratio
 		if stats.TotalTokens > 0 {
 			expiredRatio := float64(stats.ExpiredTokens) / float64(stats.TotalTokens)
@@ -289,7 +289,7 @@ func (h *DefaultHealthChecker) checkTokenStore(ctx context.Context) CheckResult 
 				message = fmt.Sprintf("High expired token ratio: %.2f%%", expiredRatio*100)
 			}
 		}
-		
+
 		return CheckResult{
 			Status:      status,
 			Message:     message,
@@ -297,7 +297,7 @@ func (h *DefaultHealthChecker) checkTokenStore(ctx context.Context) CheckResult 
 			LastChecked: time.Now(),
 		}
 	}
-	
+
 	return CheckResult{
 		Status:      HealthStatusUnhealthy,
 		Message:     "Token manager not configured",
@@ -308,7 +308,7 @@ func (h *DefaultHealthChecker) checkTokenStore(ctx context.Context) CheckResult 
 
 func (h *DefaultHealthChecker) checkProvider(ctx context.Context, providerName string) CheckResult {
 	start := time.Now()
-	
+
 	if h.multiService == nil {
 		return CheckResult{
 			Status:      HealthStatusUnhealthy,
@@ -317,7 +317,7 @@ func (h *DefaultHealthChecker) checkProvider(ctx context.Context, providerName s
 			LastChecked: time.Now(),
 		}
 	}
-	
+
 	provider, err := h.multiService.GetProvider(providerName)
 	if err != nil {
 		return CheckResult{
@@ -327,7 +327,7 @@ func (h *DefaultHealthChecker) checkProvider(ctx context.Context, providerName s
 			LastChecked: time.Now(),
 		}
 	}
-	
+
 	// Check if provider has valid config
 	if err := provider.ValidateConfig(); err != nil {
 		return CheckResult{
@@ -337,7 +337,7 @@ func (h *DefaultHealthChecker) checkProvider(ctx context.Context, providerName s
 			LastChecked: time.Now(),
 		}
 	}
-	
+
 	// Check circuit breaker status if available
 	if pwcb, ok := provider.(*ProviderWithCircuitBreaker); ok {
 		stats := pwcb.GetCircuitStats()
@@ -357,7 +357,7 @@ func (h *DefaultHealthChecker) checkProvider(ctx context.Context, providerName s
 			}
 		}
 	}
-	
+
 	return CheckResult{
 		Status:      HealthStatusHealthy,
 		Message:     fmt.Sprintf("Provider %s is operational", providerName),
@@ -368,7 +368,7 @@ func (h *DefaultHealthChecker) checkProvider(ctx context.Context, providerName s
 
 func (h *DefaultHealthChecker) checkRateLimiter(ctx context.Context) CheckResult {
 	start := time.Now()
-	
+
 	if h.rateLimiter == nil {
 		return CheckResult{
 			Status:      HealthStatusUnhealthy,
@@ -377,10 +377,10 @@ func (h *DefaultHealthChecker) checkRateLimiter(ctx context.Context) CheckResult
 			LastChecked: time.Now(),
 		}
 	}
-	
+
 	// Test rate limiter with a test key
 	testKey := fmt.Sprintf("health_check_%d", time.Now().UnixNano())
-	
+
 	// Check if we can make a request
 	allowed, err := h.rateLimiter.Allow(ctx, testKey)
 	if err != nil {
@@ -391,7 +391,7 @@ func (h *DefaultHealthChecker) checkRateLimiter(ctx context.Context) CheckResult
 			LastChecked: time.Now(),
 		}
 	}
-	
+
 	// Get status
 	status, err := h.rateLimiter.GetStatus(ctx, testKey)
 	if err != nil {
@@ -402,13 +402,13 @@ func (h *DefaultHealthChecker) checkRateLimiter(ctx context.Context) CheckResult
 			LastChecked: time.Now(),
 		}
 	}
-	
+
 	// Clean up
 	h.rateLimiter.Reset(ctx, testKey)
-	
+
 	message := fmt.Sprintf("Rate limiter operational: limit=%d, remaining=%d",
 		status.Limit, status.Remaining)
-	
+
 	if !allowed {
 		return CheckResult{
 			Status:      HealthStatusDegraded,
@@ -417,7 +417,7 @@ func (h *DefaultHealthChecker) checkRateLimiter(ctx context.Context) CheckResult
 			LastChecked: time.Now(),
 		}
 	}
-	
+
 	return CheckResult{
 		Status:      HealthStatusHealthy,
 		Message:     message,
@@ -428,13 +428,13 @@ func (h *DefaultHealthChecker) checkRateLimiter(ctx context.Context) CheckResult
 
 func (h *DefaultHealthChecker) runCheck(ctx context.Context, check func(context.Context) error) CheckResult {
 	start := time.Now()
-	
+
 	// Run check with timeout
 	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	
+
 	err := check(checkCtx)
-	
+
 	if err != nil {
 		return CheckResult{
 			Status:      HealthStatusUnhealthy,
@@ -443,7 +443,7 @@ func (h *DefaultHealthChecker) runCheck(ctx context.Context, check func(context.
 			LastChecked: time.Now(),
 		}
 	}
-	
+
 	return CheckResult{
 		Status:      HealthStatusHealthy,
 		Duration:    time.Since(start),
@@ -455,9 +455,9 @@ func (h *DefaultHealthChecker) getHealthMetrics() *HealthMetrics {
 	if h.metricsCollector == nil {
 		return nil
 	}
-	
+
 	metrics := h.metricsCollector.GetMetrics()
-	
+
 	// Calculate requests per second
 	uptime := time.Since(metrics.StartTime).Seconds()
 	rps := float64(0)
@@ -466,7 +466,7 @@ func (h *DefaultHealthChecker) getHealthMetrics() *HealthMetrics {
 			metrics.TokenRefreshes.Total + metrics.UserInfoRequests.Total
 		rps = float64(totalRequests) / uptime
 	}
-	
+
 	// Calculate error rate
 	errorRate := float64(0)
 	totalRequests := metrics.AuthRequests.Total + metrics.TokenExchanges.Total +
@@ -476,13 +476,13 @@ func (h *DefaultHealthChecker) getHealthMetrics() *HealthMetrics {
 			metrics.TokenRefreshes.Failed + metrics.UserInfoRequests.Failed
 		errorRate = float64(totalErrors) / float64(totalRequests)
 	}
-	
+
 	// Get average latency
 	avgLatency := int64(0)
 	if rt, exists := metrics.ResponseTimes["token_exchange"]; exists && rt.Count > 0 {
 		avgLatency = int64(rt.Average.Milliseconds())
 	}
-	
+
 	return &HealthMetrics{
 		RequestsPerSecond: rps,
 		ErrorRate:         errorRate,
@@ -507,13 +507,13 @@ func NewHealthHandler(checker HealthChecker) *HealthHandler {
 // HandleHealth handles the main health check endpoint
 func (h *HealthHandler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	health, err := h.checker.Check(ctx)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	// Set status code based on health status
 	statusCode := http.StatusOK
 	switch health.Status {
@@ -522,7 +522,7 @@ func (h *HealthHandler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	case HealthStatusUnhealthy:
 		statusCode = http.StatusServiceUnavailable
 	}
-	
+
 	// Write response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
@@ -535,7 +535,7 @@ func (h *HealthHandler) HandleLiveness(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
-		"status": "alive",
+		"status":    "alive",
 		"timestamp": time.Now().Format(time.RFC3339),
 	})
 }
@@ -543,29 +543,29 @@ func (h *HealthHandler) HandleLiveness(w http.ResponseWriter, r *http.Request) {
 // HandleReadiness handles the readiness probe endpoint
 func (h *HealthHandler) HandleReadiness(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	
+
 	health, err := h.checker.Check(ctx)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	
+
 	// Only return ready if health is not unhealthy
 	if health.Status == HealthStatusUnhealthy {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
 		json.NewEncoder(w).Encode(map[string]string{
-			"status": "not_ready",
-			"reason": "unhealthy",
+			"status":    "not_ready",
+			"reason":    "unhealthy",
 			"timestamp": time.Now().Format(time.RFC3339),
 		})
 		return
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{
-		"status": "ready",
+		"status":    "ready",
 		"timestamp": time.Now().Format(time.RFC3339),
 	})
 }

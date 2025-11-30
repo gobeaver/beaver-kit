@@ -15,9 +15,9 @@ import (
 
 // Global instance management for singleton pattern
 var (
-	defaultService *Service   // Global OAuth service instance
-	defaultOnce    sync.Once  // Ensures single initialization
-	defaultErr     error      // Stores initialization error
+	defaultService *Service  // Global OAuth service instance
+	defaultOnce    sync.Once // Ensures single initialization
+	defaultErr     error     // Stores initialization error
 )
 
 // Service is the main OAuth service that handles authentication flows.
@@ -45,6 +45,7 @@ type Service struct {
 // If no configuration is provided, it loads from environment variables.
 //
 // Example:
+//
 //	// Initialize with environment variables
 //	err := oauth.Init()
 //	if err != nil {
@@ -85,6 +86,7 @@ func Init(configs ...Config) error {
 // built-in providers (Google, GitHub, Apple, Twitter) and custom providers.
 //
 // Example:
+//
 //	config := oauth.Config{
 //	    Provider:     "google",
 //	    ClientID:     "your-google-client-id",
@@ -93,7 +95,7 @@ func Init(configs ...Config) error {
 //	    Scopes:       "openid,email,profile",
 //	    PKCEEnabled:  true,
 //	}
-//	
+//
 //	service, err := oauth.New(config)
 //	if err != nil {
 //	    return fmt.Errorf("failed to create OAuth service: %w", err)
@@ -185,11 +187,12 @@ func New(cfg Config) (*Service, error) {
 // Returns the authorization URL and an error if generation fails.
 //
 // Example:
+//
 //	authURL, err := service.GetAuthURL(ctx)
 //	if err != nil {
 //	    return fmt.Errorf("failed to generate auth URL: %w", err)
 //	}
-//	
+//
 //	// Redirect user to authURL
 //	http.Redirect(w, r, authURL, http.StatusFound)
 func (s *Service) GetAuthURL(ctx context.Context) (string, error) {
@@ -249,15 +252,16 @@ func (s *Service) GetAuthURL(ctx context.Context) (string, error) {
 //   - state: State parameter received from the OAuth callback
 //
 // Example:
+//
 //	// In your OAuth callback handler
 //	code := r.URL.Query().Get("code")
 //	state := r.URL.Query().Get("state")
-//	
+//
 //	token, err := service.Exchange(ctx, code, state)
 //	if err != nil {
 //	    return fmt.Errorf("failed to exchange code: %w", err)
 //	}
-//	
+//
 //	// Use token.AccessToken for API calls
 //	userInfo, err := service.GetUserInfo(ctx, token.AccessToken)
 func (s *Service) Exchange(ctx context.Context, code, state string) (*Token, error) {
@@ -326,6 +330,7 @@ func (s *Service) Exchange(ctx context.Context, code, state string) (*Token, err
 // Returns a new Token with updated access token and expiration time.
 //
 // Example:
+//
 //	// Check if token is expired and refresh if needed
 //	if token.IsExpired() {
 //	    newToken, err := service.RefreshToken(ctx, token.RefreshToken)
@@ -365,17 +370,18 @@ func (s *Service) RefreshToken(ctx context.Context, refreshToken string) (*Token
 // and requested scopes.
 //
 // Parameters:
-//   - ctx: Context for the operation  
+//   - ctx: Context for the operation
 //   - accessToken: Valid access token from a successful OAuth exchange
 //
 // Returns UserInfo containing the user's profile data.
 //
 // Example:
+//
 //	userInfo, err := service.GetUserInfo(ctx, token.AccessToken)
 //	if err != nil {
 //	    return fmt.Errorf("failed to get user info: %w", err)
 //	}
-//	
+//
 //	fmt.Printf("User: %s (%s)\n", userInfo.Name, userInfo.Email)
 //	fmt.Printf("Provider: %s\n", userInfo.Provider)
 func (s *Service) GetUserInfo(ctx context.Context, accessToken string) (*UserInfo, error) {
@@ -436,9 +442,10 @@ func (s *Service) Config() Config {
 // new service instance.
 //
 // Example:
+//
 //	// In test teardown
 //	oauth.Reset()
-//	
+//
 //	// Next OAuth() call will reinitialize
 //	service := oauth.OAuth()
 func Reset() {
@@ -455,6 +462,7 @@ func Reset() {
 // to handle initialization errors.
 //
 // Example:
+//
 //	service := oauth.GetService()
 //	if service == nil {
 //	    log.Fatal("OAuth service not initialized")
@@ -473,10 +481,11 @@ func GetService() *Service {
 // to initialize it using environment variables with the BEAVER_OAUTH_ prefix.
 //
 // Example:
+//
 //	// Generate auth URL using global service
 //	authURL, err := oauth.OAuth().GetAuthURL(ctx)
-//	
-//	// Exchange code for token  
+//
+//	// Exchange code for token
 //	token, err := oauth.OAuth().Exchange(ctx, code, state)
 func OAuth() *Service {
 	return GetService()
@@ -570,15 +579,15 @@ func (s *MemorySessionStore) Delete(ctx context.Context, key string) error {
 func (s *MemorySessionStore) RetrieveAndDelete(ctx context.Context, key string) (*SessionData, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	data, ok := s.sessions[key]
 	if !ok {
 		return nil, ErrSessionNotFound
 	}
-	
+
 	// Immediately delete to prevent replay
 	delete(s.sessions, key)
-	
+
 	return data, nil
 }
 

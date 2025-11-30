@@ -32,33 +32,14 @@ func TestPDFValidator_ValidateContent(t *testing.T) {
 			errorMsg:  "invalid PDF trailer",
 		},
 		{
-			name:      "PDF with JavaScript",
-			data:      []byte("%PDF-1.4\n/JavaScript (alert('XSS'))\n%%EOF"),
-			wantError: true,
-			errorMsg:  "JavaScript",
-		},
-		{
-			name:      "PDF with embedded files",
-			data:      []byte("%PDF-1.4\n/EmbeddedFiles\n%%EOF"),
-			wantError: true,
-			errorMsg:  "embedded files",
-		},
-		{
-			name:      "PDF with launch action",
-			data:      []byte("%PDF-1.4\n/Launch /F (cmd.exe)\n%%EOF"),
-			wantError: true,
-			errorMsg:  "launch actions",
-		},
-		{
-			name:      "PDF with forms (allowed)",
+			name:      "valid PDF with forms",
 			data:      []byte("%PDF-1.4\n/AcroForm\n%%EOF"),
-			wantError: false, // Forms are allowed by default
+			wantError: false,
 		},
 		{
-			name:      "PDF with suspicious executable",
-			data:      []byte("%PDF-1.4\ncmd.exe\n%%EOF"),
-			wantError: true,
-			errorMsg:  "suspicious patterns",
+			name:      "valid PDF with JavaScript (type validation only)",
+			data:      []byte("%PDF-1.4\n/JavaScript\n%%EOF"),
+			wantError: false, // We only validate type, not security
 		},
 	}
 
@@ -110,72 +91,30 @@ func TestPDFValidator_SupportedMIMETypes(t *testing.T) {
 	}
 }
 
-func TestPDFValidator_containsJavaScript(t *testing.T) {
-	validator := DefaultPDFValidator()
-
-	tests := []struct {
-		name     string
-		data     []byte
-		expected bool
-	}{
-		{
-			name:     "JavaScript tag",
-			data:     []byte("some content /JavaScript more content"),
-			expected: true,
-		},
-		{
-			name:     "JS tag",
-			data:     []byte("some content /JS more content"),
-			expected: true,
-		},
-		{
-			name:     "app.alert",
-			data:     []byte("some content app.alert('test') more content"),
-			expected: true,
-		},
-		{
-			name:     "no JavaScript",
-			data:     []byte("clean PDF content without scripts"),
-			expected: false,
-		},
+func TestPDFValidator_MaxSize(t *testing.T) {
+	validator := &PDFValidator{
+		MaxSize: 100, // 100 bytes max
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := validator.containsJavaScript(tt.data)
-			if result != tt.expected {
-				t.Errorf("Expected %v, got %v", tt.expected, result)
-			}
-		})
+	// Test file exceeding max size
+	data := []byte("%PDF-1.4\n" + string(make([]byte, 200)) + "%%EOF")
+	reader := bytes.NewReader(data)
+	err := validator.ValidateContent(reader, int64(len(data)))
+
+	if err == nil {
+		t.Error("Expected error for oversized PDF, got nil")
 	}
 }
 
-func TestPDFValidator_ConfigurableRestrictions(t *testing.T) {
-	// Test with JavaScript allowed
-	validator := &PDFValidator{
-		AllowJavaScript:    true,
-		AllowEmbeddedFiles: false,
-		AllowForms:         true,
-		AllowActions:       false,
-		MaxSize:            50 * MB,
-		ValidateStructure:  true,
-	}
+func TestPDFValidator_SeekableReader(t *testing.T) {
+	validator := DefaultPDFValidator()
 
-	data := []byte("%PDF-1.4\n/JavaScript (alert('test'))\n%%EOF")
+	// Test with a seekable reader (bytes.Reader)
+	data := []byte("%PDF-1.7\nsome content here\n%%EOF")
 	reader := bytes.NewReader(data)
 	err := validator.ValidateContent(reader, int64(len(data)))
 
 	if err != nil {
-		t.Errorf("Expected no error with JavaScript allowed, got: %v", err)
-	}
-
-	// Test with forms not allowed
-	validator.AllowForms = false
-	data = []byte("%PDF-1.4\n/AcroForm\n%%EOF")
-	reader = bytes.NewReader(data)
-	err = validator.ValidateContent(reader, int64(len(data)))
-
-	if err == nil {
-		t.Error("Expected error with forms not allowed, got nil")
+		t.Errorf("Expected no error for valid PDF, got: %v", err)
 	}
 }

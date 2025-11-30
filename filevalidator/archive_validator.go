@@ -5,17 +5,17 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"io/ioutil"
+	"strings"
 )
 
-// ArchiveValidator validates archive files to prevent zip bombs and other malicious archives
+// ArchiveValidator validates ZIP archive files for zip bombs and path traversal.
+// Currently only supports ZIP format (including .jar, .war, .ear which are ZIP-based).
+// For other formats (RAR, 7z, TAR), use dedicated libraries.
 type ArchiveValidator struct {
 	MaxCompressionRatio float64
 	MaxFiles            int
-	MaxDepth            int
 	MaxUncompressedSize int64
 	MaxNestedArchives   int
-	ArchiveExtensions   []string
 }
 
 // DefaultArchiveValidator creates an archive validator with sensible defaults
@@ -23,29 +23,41 @@ func DefaultArchiveValidator() *ArchiveValidator {
 	return &ArchiveValidator{
 		MaxCompressionRatio: 100.0, // 100:1 compression ratio max
 		MaxFiles:            1000,
-		MaxDepth:            10,
-		MaxUncompressedSize: 100 * GB,
-		MaxNestedArchives:   5,
-		ArchiveExtensions:   []string{".zip", ".jar", ".war", ".ear", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz"},
+		MaxUncompressedSize: 1 * GB,
+		MaxNestedArchives:   3,
 	}
 }
 
-// ValidateContent validates the content of an archive file
+// ValidateContent validates the content of an archive file.
+// For efficient validation, pass a reader that implements io.ReaderAt (e.g., *os.File, *bytes.Reader).
+// Non-seekable readers are only supported for small files (<1MB).
 func (v *ArchiveValidator) ValidateContent(reader io.Reader, size int64) error {
-	// Read the entire content into memory
-	// Note: For large files, you might want to implement a streaming approach
-	data, err := ioutil.ReadAll(reader)
+	// Try to use ReaderAt for memory-efficient validation
+	if readerAt, ok := reader.(io.ReaderAt); ok {
+		return v.validateWithReaderAt(readerAt, size)
+	}
+
+	// Fallback for non-seekable readers - only allow small files
+	if size > 1*MB {
+		return NewValidationError(ErrorTypeContent,
+			"large ZIP files require seekable reader (e.g., *os.File) for efficient validation")
+	}
+
+	// Read small file into memory
+	data, err := io.ReadAll(reader)
 	if err != nil {
 		return NewValidationError(ErrorTypeContent, "failed to read archive content")
 	}
 
-	// Create a reader from the bytes
-	bytesReader := bytes.NewReader(data)
+	return v.validateWithReaderAt(bytes.NewReader(data), int64(len(data)))
+}
 
-	// Try to open as zip file
-	zipReader, err := zip.NewReader(bytesReader, size)
+// validateWithReaderAt validates ZIP without loading entire file into memory
+func (v *ArchiveValidator) validateWithReaderAt(reader io.ReaderAt, size int64) error {
+	// zip.NewReader reads only the central directory (at end of file)
+	// It does NOT load the entire archive into memory
+	zipReader, err := zip.NewReader(reader, size)
 	if err != nil {
-		// This might not be a zip file, or it's corrupted
 		return NewValidationError(ErrorTypeContent, fmt.Sprintf("cannot open archive: %v", err))
 	}
 
@@ -110,27 +122,22 @@ func (v *ArchiveValidator) ValidateContent(reader io.Reader, size int64) error {
 	return nil
 }
 
-// SupportedMIMETypes returns the MIME types this validator can handle
+// SupportedMIMETypes returns the MIME types this validator can handle.
+// Only ZIP-based formats are actually validated.
 func (v *ArchiveValidator) SupportedMIMETypes() []string {
 	return []string{
 		"application/zip",
 		"application/x-zip-compressed",
-		"application/x-compressed",
-		"application/x-jar",
-		"application/java-archive",
-		"application/x-rar-compressed",
-		"application/x-7z-compressed",
-		"application/x-tar",
-		"application/gzip",
-		"application/x-gzip",
-		"application/x-bzip2",
-		"application/x-xz",
+		"application/java-archive", // JAR (ZIP-based)
 	}
 }
 
-// isArchive checks if a filename indicates an archive
+// zipExtensions are the extensions we recognize as ZIP-based archives
+var zipExtensions = []string{".zip", ".jar", ".war", ".ear"}
+
+// isArchive checks if a filename indicates a ZIP-based archive
 func (v *ArchiveValidator) isArchive(filename string) bool {
-	for _, ext := range v.ArchiveExtensions {
+	for _, ext := range zipExtensions {
 		if hasExtension(filename, ext) {
 			return true
 		}
@@ -172,8 +179,8 @@ func hasExtension(filename, ext string) bool {
 	if len(filename) < len(ext) {
 		return false
 	}
-	return filename[len(filename)-len(ext):] == ext ||
-		filename[len(filename)-len(ext):] == ext
+	suffix := strings.ToLower(filename[len(filename)-len(ext):])
+	return suffix == strings.ToLower(ext)
 }
 
 // containsPattern checks if a path contains a dangerous pattern

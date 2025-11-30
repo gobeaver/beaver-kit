@@ -145,12 +145,12 @@ func (a *AppleProvider) Exchange(ctx context.Context, code string, pkce *PKCECha
 	}
 
 	var tokenResp struct {
-		AccessToken  string `json:"access_token"`
-		TokenType    string `json:"token_type"`
-		RefreshToken string `json:"refresh_token"`
-		ExpiresIn    int    `json:"expires_in"`
-		IDToken      string `json:"id_token"`
-		Error        string `json:"error"`
+		AccessToken      string `json:"access_token"`
+		TokenType        string `json:"token_type"`
+		RefreshToken     string `json:"refresh_token"`
+		ExpiresIn        int    `json:"expires_in"`
+		IDToken          string `json:"id_token"`
+		Error            string `json:"error"`
 		ErrorDescription string `json:"error_description"`
 	}
 
@@ -227,11 +227,11 @@ func (a *AppleProvider) RefreshToken(ctx context.Context, refreshToken string) (
 	}
 
 	var tokenResp struct {
-		AccessToken  string `json:"access_token"`
-		TokenType    string `json:"token_type"`
-		ExpiresIn    int    `json:"expires_in"`
-		IDToken      string `json:"id_token"`
-		Error        string `json:"error"`
+		AccessToken      string `json:"access_token"`
+		TokenType        string `json:"token_type"`
+		ExpiresIn        int    `json:"expires_in"`
+		IDToken          string `json:"id_token"`
+		Error            string `json:"error"`
 		ErrorDescription string `json:"error_description"`
 	}
 
@@ -298,7 +298,7 @@ func (a *AppleProvider) GetUserInfoFromIDTokenWithNonce(idToken string, nonce st
 	rawClaims["aud"] = claims.Audience
 	rawClaims["exp"] = claims.ExpirationTime
 	rawClaims["iat"] = claims.IssuedAt
-	
+
 	if claims.Email != "" {
 		rawClaims["email"] = claims.Email
 	}
@@ -311,7 +311,7 @@ func (a *AppleProvider) GetUserInfoFromIDTokenWithNonce(idToken string, nonce st
 	if claims.RealUserStatus > 0 {
 		rawClaims["real_user_status"] = claims.RealUserStatus
 	}
-	
+
 	// Apple sometimes includes name in extra claims
 	if name, ok := claims.Extra["name"].(map[string]interface{}); ok {
 		if firstName, ok := name["firstName"].(string); ok {
@@ -324,9 +324,9 @@ func (a *AppleProvider) GetUserInfoFromIDTokenWithNonce(idToken string, nonce st
 			userInfo.Name = strings.TrimSpace(userInfo.FirstName + " " + userInfo.LastName)
 		}
 	}
-	
+
 	userInfo.Raw = rawClaims
-	
+
 	return userInfo, nil
 }
 
@@ -340,7 +340,7 @@ func (a *AppleProvider) RevokeToken(ctx context.Context, token string) error {
 
 	// Apple's revoke endpoint
 	revokeURL := "https://appleid.apple.com/auth/revoke"
-	
+
 	data := url.Values{
 		"client_id":     {a.config.ClientID},
 		"client_secret": {clientSecret},
@@ -487,24 +487,24 @@ func (a *AppleProvider) ParseIDTokenWithNonce(idToken string, nonce string) (map
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Convert claims to map[string]interface{} for backward compatibility
 	result := make(map[string]interface{})
-	
+
 	// Standard claims
 	result["iss"] = claims.Issuer
 	result["sub"] = claims.Subject
 	result["aud"] = claims.Audience
 	result["exp"] = claims.ExpirationTime
 	result["iat"] = claims.IssuedAt
-	
+
 	if claims.AuthTime > 0 {
 		result["auth_time"] = claims.AuthTime
 	}
 	if claims.Nonce != "" {
 		result["nonce"] = claims.Nonce
 	}
-	
+
 	// Apple-specific claims
 	if claims.Email != "" {
 		result["email"] = claims.Email
@@ -524,12 +524,12 @@ func (a *AppleProvider) ParseIDTokenWithNonce(idToken string, nonce string) (map
 	if claims.AtHash != "" {
 		result["at_hash"] = claims.AtHash
 	}
-	
+
 	// Add extra claims
 	for k, v := range claims.Extra {
 		result[k] = v
 	}
-	
+
 	return result, nil
 }
 

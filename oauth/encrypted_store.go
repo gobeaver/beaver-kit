@@ -24,12 +24,12 @@ func NewEncryptedTokenStore(store TokenStore, key []byte) (*EncryptedTokenStore,
 	if len(key) == 0 {
 		return nil, fmt.Errorf("encryption key cannot be empty")
 	}
-	
+
 	encryptor, err := NewAESGCMEncryptor(key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create encryptor: %w", err)
 	}
-	
+
 	return &EncryptedTokenStore{
 		store:     store,
 		encryptor: encryptor,
@@ -43,19 +43,19 @@ func (e *EncryptedTokenStore) Store(ctx context.Context, key string, token *Toke
 	if err != nil {
 		return fmt.Errorf("failed to marshal token: %w", err)
 	}
-	
+
 	// Encrypt data
 	encrypted, err := e.encryptor.Encrypt(data)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt token: %w", err)
 	}
-	
+
 	// Store encrypted data as a token with special marker
 	encryptedToken := &Token{
 		AccessToken: base64.StdEncoding.EncodeToString(encrypted),
 		TokenType:   "encrypted",
 	}
-	
+
 	return e.store.Store(ctx, key, encryptedToken)
 }
 
@@ -66,31 +66,31 @@ func (e *EncryptedTokenStore) Retrieve(ctx context.Context, key string) (*Token,
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Check if token is encrypted
 	if encryptedToken.TokenType != "encrypted" {
 		// Return as-is for backward compatibility
 		return encryptedToken, nil
 	}
-	
+
 	// Decode from base64
 	encrypted, err := base64.StdEncoding.DecodeString(encryptedToken.AccessToken)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode encrypted token: %w", err)
 	}
-	
+
 	// Decrypt data
 	decrypted, err := e.encryptor.Decrypt(encrypted)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt token: %w", err)
 	}
-	
+
 	// Deserialize token
 	var token Token
 	if err := json.Unmarshal(decrypted, &token); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal token: %w", err)
 	}
-	
+
 	return &token, nil
 }
 
@@ -110,12 +110,12 @@ func NewEncryptedSessionStore(store SessionStore, key []byte) (*EncryptedSession
 	if len(key) == 0 {
 		return nil, fmt.Errorf("encryption key cannot be empty")
 	}
-	
+
 	encryptor, err := NewAESGCMEncryptor(key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create encryptor: %w", err)
 	}
-	
+
 	return &EncryptedSessionStore{
 		store:     store,
 		encryptor: encryptor,
@@ -129,19 +129,19 @@ func (e *EncryptedSessionStore) Store(ctx context.Context, key string, data *Ses
 	if err != nil {
 		return fmt.Errorf("failed to marshal session data: %w", err)
 	}
-	
+
 	// Encrypt data
 	encrypted, err := e.encryptor.Encrypt(jsonData)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt session data: %w", err)
 	}
-	
+
 	// Create wrapper session with encrypted data
 	encryptedSession := &SessionData{
 		State:    key, // Keep key as state for retrieval
 		Provider: "encrypted:" + base64.StdEncoding.EncodeToString(encrypted),
 	}
-	
+
 	return e.store.Store(ctx, key, encryptedSession)
 }
 
@@ -152,31 +152,31 @@ func (e *EncryptedSessionStore) Retrieve(ctx context.Context, key string) (*Sess
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Check if session is encrypted
 	if len(encryptedSession.Provider) < 10 || encryptedSession.Provider[:10] != "encrypted:" {
 		// Return as-is for backward compatibility
 		return encryptedSession, nil
 	}
-	
+
 	// Decode from base64
 	encrypted, err := base64.StdEncoding.DecodeString(encryptedSession.Provider[10:])
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode encrypted session: %w", err)
 	}
-	
+
 	// Decrypt data
 	decrypted, err := e.encryptor.Decrypt(encrypted)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt session: %w", err)
 	}
-	
+
 	// Deserialize session data
 	var sessionData SessionData
 	if err := json.Unmarshal(decrypted, &sessionData); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal session data: %w", err)
 	}
-	
+
 	return &sessionData, nil
 }
 
@@ -192,13 +192,13 @@ func (e *EncryptedSessionStore) RetrieveAndDelete(ctx context.Context, key strin
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Then delete it
 	if err := e.Delete(ctx, key); err != nil {
 		// Log error but return the session data anyway
 		// The session has been retrieved successfully
 	}
-	
+
 	return sessionData, nil
 }
 
@@ -214,7 +214,7 @@ func NewAESGCMEncryptor(key []byte) (*AESGCMEncryptor, error) {
 		hash := sha256.Sum256(key)
 		key = hash[:]
 	}
-	
+
 	return &AESGCMEncryptor{
 		key: key,
 	}, nil
@@ -227,22 +227,22 @@ func (e *AESGCMEncryptor) Encrypt(plaintext []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cipher: %w", err)
 	}
-	
+
 	// Create GCM
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GCM: %w", err)
 	}
-	
+
 	// Create nonce
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, fmt.Errorf("failed to generate nonce: %w", err)
 	}
-	
+
 	// Encrypt and append nonce to the beginning
 	ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
-	
+
 	return ciphertext, nil
 }
 
@@ -253,36 +253,36 @@ func (e *AESGCMEncryptor) Decrypt(ciphertext []byte) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cipher: %w", err)
 	}
-	
+
 	// Create GCM
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GCM: %w", err)
 	}
-	
+
 	// Check minimum length
 	nonceSize := gcm.NonceSize()
 	if len(ciphertext) < nonceSize {
 		return nil, fmt.Errorf("ciphertext too short")
 	}
-	
+
 	// Extract nonce and ciphertext
 	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
-	
+
 	// Decrypt
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt: %w", err)
 	}
-	
+
 	return plaintext, nil
 }
 
 // CacheIntegratedTokenStore integrates with external cache systems
 type CacheIntegratedTokenStore struct {
-	primary   TokenStore // Primary storage (persistent)
-	cache     TokenStore // Cache storage (fast)
-	ttl       time.Duration
+	primary TokenStore // Primary storage (persistent)
+	cache   TokenStore // Cache storage (fast)
+	ttl     time.Duration
 }
 
 // NewCacheIntegratedTokenStore creates a token store with cache integration
@@ -300,12 +300,12 @@ func (c *CacheIntegratedTokenStore) Store(ctx context.Context, key string, token
 	if err := c.primary.Store(ctx, key, token); err != nil {
 		return fmt.Errorf("failed to store in primary: %w", err)
 	}
-	
+
 	// Then store in cache (best effort)
 	if c.cache != nil {
 		c.cache.Store(ctx, key, token)
 	}
-	
+
 	return nil
 }
 
@@ -317,18 +317,18 @@ func (c *CacheIntegratedTokenStore) Retrieve(ctx context.Context, key string) (*
 			return token, nil
 		}
 	}
-	
+
 	// Fallback to primary
 	token, err := c.primary.Retrieve(ctx, key)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Update cache (best effort)
 	if c.cache != nil {
 		c.cache.Store(ctx, key, token)
 	}
-	
+
 	return token, nil
 }
 
@@ -338,7 +338,7 @@ func (c *CacheIntegratedTokenStore) Delete(ctx context.Context, key string) erro
 	if c.cache != nil {
 		c.cache.Delete(ctx, key)
 	}
-	
+
 	// Delete from primary
 	return c.primary.Delete(ctx, key)
 }

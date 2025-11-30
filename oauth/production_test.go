@@ -17,11 +17,11 @@ func TestTokenBucketRateLimiter(t *testing.T) {
 		Interval:  1 * time.Second,
 		BurstSize: 10,
 	}
-	
+
 	limiter := oauth.NewTokenBucketLimiter(config)
 	ctx := context.Background()
 	key := "test-key"
-	
+
 	// Test burst capacity
 	for i := 0; i < 10; i++ {
 		allowed, err := limiter.Allow(ctx, key)
@@ -32,7 +32,7 @@ func TestTokenBucketRateLimiter(t *testing.T) {
 			t.Errorf("Request %d should be allowed within burst size", i+1)
 		}
 	}
-	
+
 	// 11th request should be denied
 	allowed, err := limiter.Allow(ctx, key)
 	if err != nil {
@@ -41,7 +41,7 @@ func TestTokenBucketRateLimiter(t *testing.T) {
 	if allowed {
 		t.Error("Request should be denied after burst capacity is exhausted")
 	}
-	
+
 	// Get status
 	status, err := limiter.GetStatus(ctx, key)
 	if err != nil {
@@ -50,12 +50,12 @@ func TestTokenBucketRateLimiter(t *testing.T) {
 	if status.Remaining > 0 {
 		t.Errorf("Expected 0 remaining tokens, got %d", status.Remaining)
 	}
-	
+
 	// Reset and test again
 	if err := limiter.Reset(ctx, key); err != nil {
 		t.Fatalf("Failed to reset: %v", err)
 	}
-	
+
 	allowed, err = limiter.Allow(ctx, key)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
@@ -70,11 +70,11 @@ func TestSlidingWindowRateLimiter(t *testing.T) {
 		Rate:     3,
 		Interval: 100 * time.Millisecond,
 	}
-	
+
 	limiter := oauth.NewSlidingWindowLimiter(config)
 	ctx := context.Background()
 	key := "test-key"
-	
+
 	// Make 3 requests (should all be allowed)
 	for i := 0; i < 3; i++ {
 		allowed, err := limiter.Allow(ctx, key)
@@ -85,7 +85,7 @@ func TestSlidingWindowRateLimiter(t *testing.T) {
 			t.Errorf("Request %d should be allowed", i+1)
 		}
 	}
-	
+
 	// 4th request should be denied
 	allowed, err := limiter.Allow(ctx, key)
 	if err != nil {
@@ -94,10 +94,10 @@ func TestSlidingWindowRateLimiter(t *testing.T) {
 	if allowed {
 		t.Error("4th request should be denied")
 	}
-	
+
 	// Wait for window to slide
 	time.Sleep(150 * time.Millisecond)
-	
+
 	// Should be allowed again
 	allowed, err = limiter.Allow(ctx, key)
 	if err != nil {
@@ -114,10 +114,10 @@ func TestCircuitBreaker(t *testing.T) {
 		SuccessThreshold: 2,
 		Timeout:          100 * time.Millisecond,
 	}
-	
+
 	breaker := oauth.NewDefaultCircuitBreaker(config)
 	ctx := context.Background()
-	
+
 	// Test successful calls
 	for i := 0; i < 5; i++ {
 		err := breaker.Call(ctx, func() error {
@@ -127,11 +127,11 @@ func TestCircuitBreaker(t *testing.T) {
 			t.Errorf("Successful call %d failed: %v", i+1, err)
 		}
 	}
-	
+
 	if breaker.GetState() != oauth.StateClosed {
 		t.Errorf("Circuit should be closed, got %s", breaker.GetState())
 	}
-	
+
 	// Test failures to open circuit
 	testErr := errors.New("test error")
 	for i := 0; i < 3; i++ {
@@ -142,11 +142,11 @@ func TestCircuitBreaker(t *testing.T) {
 			t.Errorf("Expected test error, got %v", err)
 		}
 	}
-	
+
 	if breaker.GetState() != oauth.StateOpen {
 		t.Errorf("Circuit should be open after %d failures, got %s", 3, breaker.GetState())
 	}
-	
+
 	// Calls should fail immediately when open
 	err := breaker.Call(ctx, func() error {
 		return nil
@@ -154,10 +154,10 @@ func TestCircuitBreaker(t *testing.T) {
 	if err != oauth.ErrCircuitOpen {
 		t.Errorf("Expected ErrCircuitOpen, got %v", err)
 	}
-	
+
 	// Wait for timeout
 	time.Sleep(150 * time.Millisecond)
-	
+
 	// Circuit should transition to half-open
 	successCount := 0
 	for i := 0; i < 2; i++ {
@@ -169,12 +169,12 @@ func TestCircuitBreaker(t *testing.T) {
 			t.Errorf("Half-open call %d failed: %v", i+1, err)
 		}
 	}
-	
+
 	// Circuit should be closed after success threshold
 	if breaker.GetState() != oauth.StateClosed {
 		t.Errorf("Circuit should be closed after success threshold, got %s", breaker.GetState())
 	}
-	
+
 	// Get stats
 	stats := breaker.GetStats()
 	if stats.TotalSuccesses != int64(5+successCount) {
@@ -188,19 +188,19 @@ func TestCircuitBreaker(t *testing.T) {
 func TestSecurityHeaders(t *testing.T) {
 	middleware := oauth.NewMiddleware(oauth.MiddlewareConfig{
 		EnableSecurityHeaders: true,
-		EnableHSTS:           true,
-		HSTSMaxAge:          31536000,
+		EnableHSTS:            true,
+		HSTSMaxAge:            31536000,
 	})
-	
+
 	handler := middleware.SecurityHeaders(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
-	
+
 	req := httptest.NewRequest("GET", "/test", nil)
 	w := httptest.NewRecorder()
-	
+
 	handler.ServeHTTP(w, req)
-	
+
 	// Check security headers
 	expectedHeaders := map[string]string{
 		"X-Content-Type-Options": "nosniff",
@@ -208,13 +208,13 @@ func TestSecurityHeaders(t *testing.T) {
 		"X-XSS-Protection":       "1; mode=block",
 		"Referrer-Policy":        "strict-origin-when-cross-origin",
 	}
-	
+
 	for header, expected := range expectedHeaders {
 		if got := w.Header().Get(header); got != expected {
 			t.Errorf("Expected %s header to be %q, got %q", header, expected, got)
 		}
 	}
-	
+
 	// CSP should be present
 	if csp := w.Header().Get("Content-Security-Policy"); csp == "" {
 		t.Error("Content-Security-Policy header should be present")
@@ -228,46 +228,46 @@ func TestCORSMiddleware(t *testing.T) {
 		AllowedMethods:   []string{"GET", "POST", "OPTIONS"},
 		AllowedHeaders:   []string{"Content-Type", "Authorization"},
 		AllowCredentials: true,
-		MaxAge:          3600,
+		MaxAge:           3600,
 	})
-	
+
 	handler := middleware.CORS(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
-	
+
 	// Test preflight request
 	req := httptest.NewRequest("OPTIONS", "/test", nil)
 	req.Header.Set("Origin", "https://example.com")
 	req.Header.Set("Access-Control-Request-Method", "POST")
 	req.Header.Set("Access-Control-Request-Headers", "Content-Type")
-	
+
 	w := httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusNoContent {
 		t.Errorf("Expected status 204 for preflight, got %d", w.Code)
 	}
-	
+
 	// Check CORS headers
 	if origin := w.Header().Get("Access-Control-Allow-Origin"); origin != "https://example.com" {
 		t.Errorf("Expected origin header to be https://example.com, got %s", origin)
 	}
-	
+
 	if credentials := w.Header().Get("Access-Control-Allow-Credentials"); credentials != "true" {
 		t.Error("Access-Control-Allow-Credentials should be true")
 	}
-	
+
 	if methods := w.Header().Get("Access-Control-Allow-Methods"); methods == "" {
 		t.Error("Access-Control-Allow-Methods should be present")
 	}
-	
+
 	// Test actual request
 	req = httptest.NewRequest("POST", "/test", nil)
 	req.Header.Set("Origin", "https://app.example.com")
-	
+
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
-	
+
 	if origin := w.Header().Get("Access-Control-Allow-Origin"); origin != "https://app.example.com" {
 		t.Errorf("Expected origin header to be https://app.example.com, got %s", origin)
 	}
@@ -275,7 +275,7 @@ func TestCORSMiddleware(t *testing.T) {
 
 func TestMetricsCollector(t *testing.T) {
 	collector := oauth.NewDefaultMetricsCollector()
-	
+
 	// Record some metrics
 	collector.RecordAuthRequest("google", true, 100*time.Millisecond)
 	collector.RecordAuthRequest("google", false, 200*time.Millisecond)
@@ -284,10 +284,10 @@ func TestMetricsCollector(t *testing.T) {
 	collector.RecordUserInfoRequest("github", false, 300*time.Millisecond)
 	collector.RecordRateLimitHit("user:123")
 	collector.RecordError("google", "exchange", "network_error")
-	
+
 	// Get metrics
 	metrics := collector.GetMetrics()
-	
+
 	// Verify counters
 	if metrics.AuthRequests.Total != 2 {
 		t.Errorf("Expected 2 total auth requests, got %d", metrics.AuthRequests.Total)
@@ -298,15 +298,15 @@ func TestMetricsCollector(t *testing.T) {
 	if metrics.AuthRequests.Failed != 1 {
 		t.Errorf("Expected 1 failed auth request, got %d", metrics.AuthRequests.Failed)
 	}
-	
+
 	if metrics.TokenExchanges.Total != 1 {
 		t.Errorf("Expected 1 token exchange, got %d", metrics.TokenExchanges.Total)
 	}
-	
+
 	if metrics.RateLimitHits.Total != 1 {
 		t.Errorf("Expected 1 rate limit hit, got %d", metrics.RateLimitHits.Total)
 	}
-	
+
 	// Check provider metrics
 	googleMetrics, exists := metrics.ProviderMetrics["google"]
 	if !exists {
@@ -319,7 +319,7 @@ func TestMetricsCollector(t *testing.T) {
 			t.Errorf("Expected 1 Google error, got %d", googleMetrics.Errors)
 		}
 	}
-	
+
 	// Test reset
 	collector.Reset()
 	metrics = collector.GetMetrics()
@@ -340,13 +340,13 @@ func TestHealthChecker(t *testing.T) {
 		BurstSize: 200,
 	})
 	metricsCollector := oauth.NewDefaultMetricsCollector()
-	
+
 	// Create multi-provider service
 	multiService, _ := oauth.NewMultiProviderService(oauth.MultiProviderConfig{
 		PKCEEnabled:    true,
 		SessionTimeout: 5 * time.Minute,
 	})
-	
+
 	// Register a test provider
 	googleProvider := oauth.NewGoogle(oauth.ProviderConfig{
 		ClientID:     "test-id",
@@ -354,7 +354,7 @@ func TestHealthChecker(t *testing.T) {
 		RedirectURL:  "http://localhost/callback",
 	})
 	multiService.RegisterProvider("google", googleProvider)
-	
+
 	// Create health checker
 	healthChecker := oauth.NewDefaultHealthChecker(oauth.HealthCheckerConfig{
 		Version:          "1.0.0",
@@ -363,29 +363,29 @@ func TestHealthChecker(t *testing.T) {
 		RateLimiter:      rateLimiter,
 		MetricsCollector: metricsCollector,
 	})
-	
+
 	// Register custom check
 	healthChecker.RegisterCheck("database", func(ctx context.Context) error {
 		// Simulate database check
 		return nil
 	})
-	
+
 	// Perform health check
 	ctx := context.Background()
 	health, err := healthChecker.Check(ctx)
 	if err != nil {
 		t.Fatalf("Health check failed: %v", err)
 	}
-	
+
 	// Verify health status
 	if health.Status != oauth.HealthStatusHealthy {
 		t.Errorf("Expected healthy status, got %s", health.Status)
 	}
-	
+
 	if health.Version != "1.0.0" {
 		t.Errorf("Expected version 1.0.0, got %s", health.Version)
 	}
-	
+
 	// Check individual components
 	expectedChecks := []string{"session_store", "token_store", "provider_google", "rate_limiter", "database"}
 	for _, checkName := range expectedChecks {
@@ -395,7 +395,7 @@ func TestHealthChecker(t *testing.T) {
 			t.Errorf("Expected %s to be healthy, got %s", checkName, check.Status)
 		}
 	}
-	
+
 	// Check specific component
 	result, err := healthChecker.CheckComponent(ctx, "rate_limiter")
 	if err != nil {
@@ -411,32 +411,32 @@ func TestHealthHandlers(t *testing.T) {
 	healthChecker := oauth.NewDefaultHealthChecker(oauth.HealthCheckerConfig{
 		Version: "1.0.0",
 	})
-	
+
 	handler := oauth.NewHealthHandler(healthChecker)
-	
+
 	// Test health endpoint
 	req := httptest.NewRequest("GET", "/health", nil)
 	w := httptest.NewRecorder()
 	handler.HandleHealth(w, req)
-	
+
 	if w.Code != http.StatusOK && w.Code != http.StatusServiceUnavailable {
 		t.Errorf("Expected status 200 or 503, got %d", w.Code)
 	}
-	
+
 	// Test liveness endpoint
 	req = httptest.NewRequest("GET", "/health/live", nil)
 	w = httptest.NewRecorder()
 	handler.HandleLiveness(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Errorf("Liveness check should return 200, got %d", w.Code)
 	}
-	
+
 	// Test readiness endpoint
 	req = httptest.NewRequest("GET", "/health/ready", nil)
 	w = httptest.NewRecorder()
 	handler.HandleReadiness(w, req)
-	
+
 	if w.Code != http.StatusOK && w.Code != http.StatusServiceUnavailable {
 		t.Errorf("Readiness check should return 200 or 503, got %d", w.Code)
 	}

@@ -14,10 +14,10 @@ func base64URLDecode(s string) ([]byte, error) {
 	case 3:
 		s += "="
 	}
-	
+
 	// Replace URL-safe characters
 	s = strings.ReplaceAll(s, "-", "+")
 	s = strings.ReplaceAll(s, "_", "/")
-	
+
 	return base64.StdEncoding.DecodeString(s)
 }

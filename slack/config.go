@@ -14,32 +14,32 @@ type Config struct {
 	IconEmoji  string        `env:"ICON_EMOJI"`
 	IconURL    string        `env:"ICON_URL"`
 	Timeout    time.Duration `env:"TIMEOUT,default:10s"`
-	
+
 	// Retry configuration
 	MaxRetries    int           `env:"MAX_RETRIES,default:3"`
 	RetryDelay    time.Duration `env:"RETRY_DELAY,default:1s"`
 	RetryMaxDelay time.Duration `env:"RETRY_MAX_DELAY,default:30s"`
 	RetryJitter   bool          `env:"RETRY_JITTER,default:true"`
-	
+
 	// Rate limiting
-	RateLimit      int           `env:"RATE_LIMIT,default:1"`              // requests per second
-	RateBurst      int           `env:"RATE_BURST,default:10"`             // burst size
-	
+	RateLimit int `env:"RATE_LIMIT,default:1"`  // requests per second
+	RateBurst int `env:"RATE_BURST,default:10"` // burst size
+
 	// Circuit breaker
-	CircuitThreshold   int           `env:"CIRCUIT_THRESHOLD,default:5"`      // failures before opening
-	CircuitTimeout     time.Duration `env:"CIRCUIT_TIMEOUT,default:60s"`      // time before half-open
-	CircuitMaxRequests int           `env:"CIRCUIT_MAX_REQUESTS,default:1"`   // requests in half-open state
-	
+	CircuitThreshold   int           `env:"CIRCUIT_THRESHOLD,default:5"`    // failures before opening
+	CircuitTimeout     time.Duration `env:"CIRCUIT_TIMEOUT,default:60s"`    // time before half-open
+	CircuitMaxRequests int           `env:"CIRCUIT_MAX_REQUESTS,default:1"` // requests in half-open state
+
 	// Security
-	MaxMessageSize int  `env:"MAX_MESSAGE_SIZE,default:40000"`    // Slack's limit is 40KB
+	MaxMessageSize int  `env:"MAX_MESSAGE_SIZE,default:40000"` // Slack's limit is 40KB
 	SanitizeInput  bool `env:"SANITIZE_INPUT,default:true"`
 	RedactErrors   bool `env:"REDACT_ERRORS,default:true"`
-	
+
 	// Monitoring
-	EnableMetrics bool `env:"ENABLE_METRICS,default:false"`
-	EnableLogging bool `env:"ENABLE_LOGGING,default:false"`
+	EnableMetrics bool   `env:"ENABLE_METRICS,default:false"`
+	EnableLogging bool   `env:"ENABLE_LOGGING,default:false"`
 	LogLevel      string `env:"LOG_LEVEL,default:info"`
-	
+
 	// Debug configuration
 	Debug bool `env:"DEBUG,default:false"`
 }

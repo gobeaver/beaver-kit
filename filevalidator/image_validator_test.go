@@ -74,19 +74,6 @@ func TestImageValidator_ValidateContent(t *testing.T) {
 			errorMsg:  "exceeds maximum",
 		},
 		{
-			name: "SVG with script",
-			createImg: func() ([]byte, error) {
-				svg := `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
-  <script>alert('XSS')</script>
-  <rect width="100" height="100" fill="red"/>
-</svg>`
-				return []byte(svg), nil
-			},
-			wantError: true,
-			errorMsg:  "dangerous content",
-		},
-		{
 			name: "valid SVG",
 			createImg: func() ([]byte, error) {
 				svg := `<?xml version="1.0" encoding="UTF-8"?>
@@ -96,6 +83,20 @@ func TestImageValidator_ValidateContent(t *testing.T) {
 				return []byte(svg), nil
 			},
 			wantError: false,
+		},
+		{
+			name: "SVG with script (type validation only, not security)",
+			createImg: func() ([]byte, error) {
+				// SVG with script is valid for TYPE validation
+				// Security scanning should be done separately (e.g., ClamAV)
+				svg := `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+  <script>alert('XSS')</script>
+  <rect width="100" height="100" fill="red"/>
+</svg>`
+				return []byte(svg), nil
+			},
+			wantError: false, // We only validate type, not security
 		},
 		{
 			name: "invalid image data",
@@ -203,5 +204,28 @@ func TestImageValidator_isSVG(t *testing.T) {
 				t.Errorf("Expected %v, got %v", tt.expected, result)
 			}
 		})
+	}
+}
+
+func TestImageValidator_SVGSizeLimit(t *testing.T) {
+	validator := &ImageValidator{
+		AllowSVG:   true,
+		MaxSVGSize: 100, // 100 bytes max
+	}
+
+	// Small SVG should pass
+	smallSVG := []byte(`<svg width="10" height="10"></svg>`)
+	reader := bytes.NewReader(smallSVG)
+	err := validator.ValidateContent(reader, int64(len(smallSVG)))
+	if err != nil {
+		t.Errorf("Expected small SVG to pass, got: %v", err)
+	}
+
+	// Large SVG should fail
+	largeSVG := []byte(`<svg width="10" height="10">` + string(make([]byte, 200)) + `</svg>`)
+	reader = bytes.NewReader(largeSVG)
+	err = validator.ValidateContent(reader, int64(len(largeSVG)))
+	if err == nil {
+		t.Error("Expected large SVG to fail, got nil")
 	}
 }

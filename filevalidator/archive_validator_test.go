@@ -157,19 +157,11 @@ func TestArchiveValidator_SupportedMIMETypes(t *testing.T) {
 	validator := DefaultArchiveValidator()
 	types := validator.SupportedMIMETypes()
 
+	// Only ZIP-based formats are actually supported
 	expectedTypes := []string{
 		"application/zip",
 		"application/x-zip-compressed",
-		"application/x-compressed",
-		"application/x-jar",
 		"application/java-archive",
-		"application/x-rar-compressed",
-		"application/x-7z-compressed",
-		"application/x-tar",
-		"application/gzip",
-		"application/x-gzip",
-		"application/x-bzip2",
-		"application/x-xz",
 	}
 
 	if len(types) != len(expectedTypes) {

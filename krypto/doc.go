@@ -252,7 +252,7 @@
 //	// Session token validation
 //	func ValidateSession(tokenString string) (*UserClaims, error) {
 //	    publicKey := getJWTPublicKey() // Your key management
-//	    
+//
 //	    claims, err := krypto.VerifyJWT(tokenString, publicKey, krypto.RSAAlgorithm)
 //	    if err != nil {
 //	        return nil, fmt.Errorf("invalid session token: %w", err)
