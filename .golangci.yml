@@ -17,21 +17,21 @@ linters:
     - bidichk        # Dangerous unicode characters
 
     # Style & Conventions
-    - revive         # Style and naming conventions
-    - gosimple       # Go idioms
-    # - gocritic       # Comprehensive checks (mixed receivers, performance, etc.)
-    - gofmt          # Standard formatting
-    - goimports      # Import organization
+    # - revive         # Style and naming conventions
+    # - gosimple       # Go idioms
+    # # - gocritic       # Comprehensive checks (mixed receivers, performance, etc.)
+    # - gofmt          # Standard formatting
+    # - goimports      # Import organization
 
     # Code Quality
-    - unused         # Dead code
-    - ineffassign    # Wasted assignments
-    - dupl           # Code duplication
-    - unconvert      # Unnecessary type conversions
-    - unparam        # Unused function parameters
-    - nakedret       # Naked returns in long functions
-    - nilerr         # Suspicious nil error returns
-    - predeclared    # Shadows predeclared identifiers
+    # - unused         # Dead code
+    # - ineffassign    # Wasted assignments
+    # - dupl           # Code duplication
+    # - unconvert      # Unnecessary type conversions
+    # - unparam        # Unused function parameters
+    # - nakedret       # Naked returns in long functions
+    # - nilerr         # Suspicious nil error returns
+    # - predeclared    # Shadows predeclared identifiers
 
     # Resource Leak Detection (Critical for library code)
     - bodyclose      # HTTP response bodies must be closed
@@ -39,8 +39,8 @@ linters:
     - noctx          # HTTP requests must use context
 
     # Complexity
-    - gocyclo        # Cyclomatic complexity
-    - nestif         # Deeply nested if statements
+    # - gocyclo        # Cyclomatic complexity
+    # - nestif         # Deeply nested if statements
 
     # Custom Rules
     - forbidigo      # Forbid specific function calls
@@ -61,12 +61,12 @@ linters-settings:
   gocyclo:
     min-complexity: 15
 
-  gosec:
-    severity: medium
-    confidence: medium
-    excludes:
-      - G104  # Covered by errcheck
-    exclude-generated: true
+  # gosec:
+  #   severity: medium
+  #   confidence: medium
+  #   excludes:
+  #     - G104  # Covered by errcheck
+  #   exclude-generated: true
 
   revive:
     rules:

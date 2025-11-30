@@ -2,6 +2,7 @@
 package filevalidator
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -131,7 +132,9 @@ func (v *FileValidator) ValidateWithContext(ctx context.Context, file *multipart
 	// Perform content validation if enabled
 	if v.constraints.ContentValidationEnabled && v.constraints.ContentValidatorRegistry != nil {
 		// Reset file reader for content validation
-		f.Seek(0, 0)
+		if _, err := f.Seek(0, 0); err != nil {
+			return NewValidationError(ErrorTypeContent, "failed to reset file reader for content validation")
+		}
 
 		if err := v.constraints.ContentValidatorRegistry.ValidateContent(mimeType, f, fileSize); err != nil {
 			// If content validation is required, return the error
@@ -243,7 +246,7 @@ func (v *FileValidator) ValidateReader(reader io.Reader, filename string, size i
 // ValidateBytes validates a file from a byte slice with a filename
 func (v *FileValidator) ValidateBytes(content []byte, filename string) error {
 	// Create a reader from the byte slice
-	reader := strings.NewReader(string(content))
+	reader := bytes.NewReader(content)
 
 	// Validate using the reader
 	return v.ValidateReader(reader, filename, int64(len(content)))
