@@ -1,5 +1,23 @@
 # Beaver Kit 🦫
 
+
+  | Linter        | Purpose                                        |
+  |---------------|------------------------------------------------|
+  | errorlint     | Enforces errors.Is/As instead of ==            |
+  | bidichk       | Detects dangerous unicode (security)           |
+  | gocritic      | Mixed receivers, performance, diagnostics      |
+  | unconvert     | Removes unnecessary type conversions           |
+  | unparam       | Finds unused function parameters               |
+  | nakedret      | Catches naked returns in long functions        |
+  | nilerr        | Finds suspicious return nil when err != nil    |
+  | predeclared   | Prevents shadowing builtins like error, string |
+  | bodyclose     | HTTP response bodies must be closed            |
+  | sqlclosecheck | SQL rows/statements must be closed             |
+  | noctx         | HTTP requests must use context                 |
+  | gocyclo       | Cyclomatic complexity                          |
+  | nestif        | Prevents deeply nested if statements           |
+
+
 A comprehensive, modular Go framework providing production-ready components for modern applications. Beaver Kit offers a collection of well-designed packages that follow consistent patterns, making it easy to build secure, scalable, and maintainable Go applications.
 
 ┌─────────────────────────────────────────────────┐
@@ -75,7 +93,7 @@ package main
 
 import (
     "log"
-    
+
     "github.com/gobeaver/beaver-kit/database"
     "github.com/gobeaver/beaver-kit/slack"
     "github.com/gobeaver/beaver-kit/captcha"
@@ -84,10 +102,10 @@ import (
 func main() {
     // All packages initialize automatically from environment
     db := database.DB()
-    
+
     // Send a Slack notification
     slack.Slack().SendInfo("Application started successfully")
-    
+
     // Validate a CAPTCHA token
     valid, err := captcha.Service().Validate(ctx, token, clientIP)
     if err != nil || !valid {
@@ -119,7 +137,7 @@ if err != nil {
     log.Fatal(err)
 }
 
-replicaDB, err := database.WithPrefix("REPLICA_").New() 
+replicaDB, err := database.WithPrefix("REPLICA_").New()
 if err != nil {
     log.Fatal(err)
 }
@@ -143,7 +161,7 @@ TENANT1_DB_HOST=tenant1.db.example.com
 TENANT1_CACHE_DRIVER=redis
 TENANT1_SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T1/...
 
-TENANT2_DB_HOST=tenant2.db.example.com  
+TENANT2_DB_HOST=tenant2.db.example.com
 TENANT2_CACHE_DRIVER=memory
 TENANT2_SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T2/...
 
@@ -270,7 +288,7 @@ func main() {
     if err := config.Load(cfg); err != nil {
         panic(err)
     }
-    
+
     fmt.Printf("Starting on port %d\n", cfg.Port)
 }
 ```
@@ -340,7 +358,7 @@ A flexible caching solution supporting both in-memory and Redis backends. Switch
 #### Key Features
 
 - **Multiple Drivers** - Built-in memory cache and Redis support
-- **Zero Code Changes** - Switch drivers via environment variables  
+- **Zero Code Changes** - Switch drivers via environment variables
 - **Connection Pooling** - Optimized Redis connection management
 - **TTL Support** - Set expiration times for cached values
 - **Namespace Isolation** - Separate cache spaces with prefixes
@@ -417,7 +435,7 @@ memCache, err := cache.New(cache.Config{
 redisCache, err := cache.New(cache.Config{
     Driver:     "redis",
     Host:       "localhost",
-    Port:       "6379", 
+    Port:       "6379",
     Database:   0,
     PoolSize:   20,
     KeyPrefix:  "myapp:",
@@ -618,7 +636,7 @@ s3FS := s3.New(s3Client, "my-bucket", s3.WithPrefix("uploads/"))
 
 // Upload files
 content := strings.NewReader("Hello, World!")
-err = fs.Upload(ctx, "hello.txt", content, 
+err = fs.Upload(ctx, "hello.txt", content,
     filekit.WithContentType("text/plain"),
     filekit.WithMetadata(map[string]string{
         "uploaded_by": "user123",
@@ -771,7 +789,7 @@ import (
     "log"
     "net/http"
     "time"
-    
+
     "github.com/gobeaver/beaver-kit/database"
     "github.com/gobeaver/beaver-kit/cache"
     "github.com/gobeaver/beaver-kit/captcha"
@@ -806,21 +824,21 @@ func main() {
     if err := urlsigner.Init(); err != nil {
         log.Fatal(err)
     }
-    
+
     // Get service instances
     db := database.DB()
     captchaService := captcha.Service()
     slackService := slack.Slack()
     urlSigner := urlsigner.Service()
-    
+
     // If using GORM for migrations
     if gormDB, err := database.GORM(); err == nil {
         gormDB.AutoMigrate(&User{})
     }
-    
+
     // Notify ops team
     slackService.SendInfo("Application started successfully")
-    
+
     // Setup HTTP handlers
     http.HandleFunc("/register", func(w http.ResponseWriter, r *http.Request) {
         // Verify CAPTCHA
@@ -830,7 +848,7 @@ func main() {
             http.Error(w, "Invalid CAPTCHA", http.StatusBadRequest)
             return
         }
-        
+
         // Hash password
         password := r.FormValue("password")
         hashedPassword, err := krypto.Argon2idHashPassword(password)
@@ -838,23 +856,23 @@ func main() {
             http.Error(w, "Error processing request", http.StatusInternalServerError)
             return
         }
-        
+
         // Create user
         user := User{
             Email:    r.FormValue("email"),
             Password: hashedPassword,
         }
-        
+
         // Using raw SQL
         _, err = db.Exec(`
-            INSERT INTO users (email, password) 
+            INSERT INTO users (email, password)
             VALUES (?, ?)`,
             user.Email, user.Password)
         if err != nil {
             http.Error(w, "Email already exists", http.StatusConflict)
             return
         }
-        
+
         // Generate JWT token
         claims := krypto.UserClaims{
             Token: fmt.Sprintf("%d", user.ID),
@@ -864,56 +882,56 @@ func main() {
             http.Error(w, "Error generating token", http.StatusInternalServerError)
             return
         }
-        
+
         // Cache user session
         sessionKey := fmt.Sprintf("session:%s", token)
         userJSON := fmt.Sprintf(`{"id": %d, "email": "%s"}`, user.ID, user.Email)
         cache.Set(r.Context(), sessionKey, []byte(userJSON), 24*time.Hour)
-        
+
         // Notify team
         slackService.SendInfo(fmt.Sprintf("New user registered: %s", user.Email))
-        
+
         // Return token
         w.Header().Set("Content-Type", "application/json")
         fmt.Fprintf(w, `{"token": "%s"}`, token)
     })
-    
+
     http.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
         // Rate limiting with cache
         clientIP := r.RemoteAddr
         rateLimitKey := fmt.Sprintf("rate_limit:%s", clientIP)
-        
+
         // Check if rate limit exceeded
         if data, err := cache.Get(r.Context(), rateLimitKey); err == nil {
             // Client already made a request within the window
             http.Error(w, "Rate limit exceeded", http.StatusTooManyRequests)
             return
         }
-        
+
         // Set rate limit for 1 minute
         cache.Set(r.Context(), rateLimitKey, []byte("1"), 1*time.Minute)
-        
+
         // Parse multipart form
         r.ParseMultipartForm(10 << 20)
-        
+
         file, header, err := r.FormFile("file")
         if err != nil {
             http.Error(w, "Error retrieving file", http.StatusBadRequest)
             return
         }
         defer file.Close()
-        
+
         // Validate file
         validator := filevalidator.New(filevalidator.ImageOnlyConstraints())
         if err := validator.Validate(header); err != nil {
             http.Error(w, fmt.Sprintf("Invalid file: %v", err), http.StatusBadRequest)
             return
         }
-        
+
         // Upload to S3
         s3Client := s3.New(awsS3Client, "uploads-bucket")
         path := fmt.Sprintf("images/%s", header.Filename)
-        
+
         err = s3Client.Upload(r.Context(), path, file,
             filekit.WithContentType(header.Header.Get("Content-Type")),
         )
@@ -921,7 +939,7 @@ func main() {
             http.Error(w, "Upload failed", http.StatusInternalServerError)
             return
         }
-        
+
         // Generate signed URL for download
         downloadURL := fmt.Sprintf("https://example.com/download/%s", path)
         signedURL, err := urlSigner.SignURL(downloadURL, 24*time.Hour, "")
@@ -929,11 +947,11 @@ func main() {
             http.Error(w, "Error generating download URL", http.StatusInternalServerError)
             return
         }
-        
+
         w.Header().Set("Content-Type", "application/json")
         fmt.Fprintf(w, `{"url": "%s"}`, signedURL)
     })
-    
+
     log.Println("Server starting on :8080")
     log.Fatal(http.ListenAndServe(":8080", nil))
 }
@@ -950,26 +968,26 @@ func TestMyFeature(t *testing.T) {
     defer cache.Reset()
     defer slack.Reset()
     defer captcha.Reset()
-    
+
     // Initialize with test configuration
     testDBConfig := database.Config{
         Driver:   "sqlite",
         Database: ":memory:",
     }
-    
+
     testCacheConfig := cache.Config{
         Driver: "memory",
         MaxKeys: 1000,
     }
-    
+
     if err := database.Init(testDBConfig); err != nil {
         t.Fatal(err)
     }
-    
+
     if err := cache.Init(testCacheConfig); err != nil {
         t.Fatal(err)
     }
-    
+
     // Your test code here
 }
 ```
@@ -1012,7 +1030,7 @@ Built with ❤️ by the Beaver team, focused on providing high-performance, pro
 
 ### Common Issues
 
-**Q: "service not initialized" error**  
+**Q: "service not initialized" error**
 A: Make sure to call `Init()` before using `Service()`:
 ```go
 if err := package.Init(); err != nil {
@@ -1021,13 +1039,13 @@ if err := package.Init(); err != nil {
 service := package.Service()
 ```
 
-**Q: Environment variables not loading**  
+**Q: Environment variables not loading**
 A: Check that variables use the `BEAVER_` prefix and enable debug mode:
 ```bash
 BEAVER_CONFIG_DEBUG=true ./myapp
 ```
 
-**Q: Database connection errors**  
+**Q: Database connection errors**
 A: Verify your connection settings and that the database server is running:
 ```bash
 BEAVER_DB_DRIVER=postgres

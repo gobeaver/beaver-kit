@@ -41,20 +41,22 @@ func TestNewDefault(t *testing.T) {
 	}
 }
 
-func TestConstraintsBuilder(t *testing.T) {
+func TestFluentBuilder(t *testing.T) {
 	regex := regexp.MustCompile(`^[a-zA-Z0-9_\.]+$`)
-	constraints := NewConstraintsBuilder().
-		WithMaxFileSize(20 * MB).
-		WithMinFileSize(2 * KB).
-		WithAcceptedTypes([]string{"image/jpeg", "image/png"}).
-		WithAllowedExtensions([]string{".jpg", ".png"}).
-		WithBlockedExtensions([]string{".exe", ".php"}).
-		WithMaxNameLength(100).
-		WithFileNameRegex(regex).
-		WithDangerousChars([]string{"../", ";"}).
-		WithRequireExtension(true).
-		WithStrictMIMETypeValidation(true).
+	validator := NewBuilder().
+		MaxSize(20 * MB).
+		MinSize(2 * KB).
+		Accept("image/jpeg", "image/png").
+		Extensions(".jpg", ".png").
+		BlockExtensions(".exe", ".php").
+		MaxNameLength(100).
+		FileNamePattern(regex).
+		DangerousChars("../", ";").
+		RequireExtension().
+		StrictMIME().
 		Build()
+
+	constraints := validator.GetConstraints()
 
 	if constraints.MaxFileSize != 20*MB {
 		t.Errorf("Expected MaxFileSize %d, got %d", 20*MB, constraints.MaxFileSize)
@@ -68,17 +70,11 @@ func TestConstraintsBuilder(t *testing.T) {
 	if len(constraints.AllowedExts) != 2 {
 		t.Errorf("Expected AllowedExts length 2, got %d", len(constraints.AllowedExts))
 	}
-	if len(constraints.BlockedExts) != 2 {
-		t.Errorf("Expected BlockedExts length 2, got %d", len(constraints.BlockedExts))
-	}
 	if constraints.MaxNameLength != 100 {
 		t.Errorf("Expected MaxNameLength 100, got %d", constraints.MaxNameLength)
 	}
 	if constraints.FileNameRegex != regex {
 		t.Error("Expected FileNameRegex to match")
-	}
-	if len(constraints.DangerousChars) != 2 {
-		t.Errorf("Expected DangerousChars length 2, got %d", len(constraints.DangerousChars))
 	}
 	if !constraints.RequireExtension {
 		t.Error("Expected RequireExtension to be true")

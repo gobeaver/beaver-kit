@@ -1,16 +1,15 @@
 # FileValidator
 
-A comprehensive, security-focused file validation package for Go applications. Part of the [Beaver Kit](https://github.com/gobeaver/beaver-kit) collection.
+A high-performance, memory-efficient file validation package for Go. Validates file types without loading entire files into memory.
 
 ## Features
 
-- **Comprehensive Validation** - File size, MIME type, filename, and extension validation
-- **Content-Based Security** - Deep inspection to detect zip bombs, malicious images, and dangerous PDFs
-- **Zero External Dependencies** - Pure Go implementation with no CGO requirements
-- **Context Support** - Cancel long-running validations with context
-- **Stream Validation** - Validate large files without loading them entirely into memory
-- **Structured Errors** - Specific error types for precise error handling
-- **Highly Configurable** - Builder pattern and predefined constraint sets
+- **Memory Efficient** - Header-only validation (500MB file uses ~2KB RAM)
+- **60+ File Formats** - Images, documents, archives, audio, video, text
+- **Zero Dependencies** - Pure Go, no CGO
+- **Fluent API** - Clean, chainable configuration
+- **Content Validation** - Zip bomb protection, path traversal detection
+- **Magic Bytes Detection** - Accurate MIME detection beyond `http.DetectContentType`
 
 ## Installation
 
@@ -21,666 +20,346 @@ go get github.com/gobeaver/beaver-kit/filevalidator
 ## Quick Start
 
 ```go
-package main
+// One-liner with preset
+validator := filevalidator.ForImages().Build()
 
-import (
-    "fmt"
-    "net/http"
-
-    "github.com/gobeaver/beaver-kit/filevalidator"
-)
-
-func main() {
-    validator := filevalidator.NewDefault()
-
-    http.HandleFunc("/upload", func(w http.ResponseWriter, r *http.Request) {
-        if err := r.ParseMultipartForm(10 << 20); err != nil {
-            http.Error(w, "Could not parse form", http.StatusBadRequest)
-            return
-        }
-
-        file, header, err := r.FormFile("file")
-        if err != nil {
-            http.Error(w, "Error retrieving file", http.StatusBadRequest)
-            return
-        }
-        defer file.Close()
-
-        if err := validator.Validate(header); err != nil {
-            http.Error(w, "Validation failed: "+err.Error(), http.StatusBadRequest)
-            return
-        }
-
-        fmt.Fprintf(w, "File '%s' uploaded successfully!", header.Filename)
-    })
-
-    http.ListenAndServe(":8080", nil)
-}
-```
-
-## Default Constraints
-
-`NewDefault()` provides secure defaults suitable for most applications:
-
-| Constraint | Default Value |
-|------------|---------------|
-| Max file size | 10 MB |
-| Min file size | 1 byte |
-| Max filename length | 255 characters |
-| Require extension | Yes |
-| Content validation | Enabled (non-blocking) |
-| Blocked extensions | `.exe`, `.bat`, `.sh`, `.php`, `.js`, and 40+ others |
-| Dangerous characters | `../`, `\`, `;`, `&`, `\|`, `>`, `<`, `$`, `` ` ``, `!`, `*` |
-
-## Predefined Constraint Sets
-
-```go
-// Images only (jpg, png, gif, webp, svg, bmp, tiff)
-validator := filevalidator.New(filevalidator.ImageOnlyConstraints())
-
-// Documents only (pdf, doc, docx, txt, rtf)
-validator := filevalidator.New(filevalidator.DocumentOnlyConstraints())
-
-// Media only (audio + video, max 500MB)
-validator := filevalidator.New(filevalidator.MediaOnlyConstraints())
-```
-
-## Custom Constraints with Builder
-
-```go
-import (
-    "regexp"
-
-    "github.com/gobeaver/beaver-kit/filevalidator"
-)
-
-constraints := filevalidator.NewConstraintsBuilder().
-    WithMaxFileSize(5 * filevalidator.MB).
-    WithMinFileSize(1 * filevalidator.KB).
-    WithAcceptedTypes([]string{"image/jpeg", "image/png"}).
-    WithAllowedExtensions([]string{".jpg", ".jpeg", ".png"}).
-    WithBlockedExtensions([]string{".exe", ".php", ".js"}).
-    WithMaxNameLength(100).
-    WithRequireExtension(true).
-    WithFileNameRegex(regexp.MustCompile(`^[a-zA-Z0-9_-]+\.[a-z]+$`)).
-    WithStrictMIMETypeValidation(true).
+// Or customize
+validator := filevalidator.NewBuilder().
+    MaxSize(10 * filevalidator.MB).
+    Accept("image/*").
+    Extensions(".jpg", ".png", ".webp").
+    WithContentValidation().
     Build()
 
-validator := filevalidator.New(constraints)
+// Validate
+err := validator.Validate(fileHeader)
 ```
 
-### Builder Methods
+## Fluent Builder API
 
-| Method | Description |
-|--------|-------------|
-| `WithMaxFileSize(int64)` | Maximum file size in bytes |
-| `WithMinFileSize(int64)` | Minimum file size in bytes |
-| `WithAcceptedTypes([]string)` | Allowed MIME types |
-| `WithAllowedExtensions([]string)` | Allowed file extensions |
-| `WithBlockedExtensions([]string)` | Blocked file extensions |
-| `WithMaxNameLength(int)` | Maximum filename length |
-| `WithFileNameRegex(*regexp.Regexp)` | Filename pattern validation |
-| `WithDangerousChars([]string)` | Characters to block in filenames |
-| `WithRequireExtension(bool)` | Require files to have extensions |
-| `WithStrictMIMETypeValidation(bool)` | Require MIME and extension match |
-
-### Size Constants
+### Basic Usage
 
 ```go
-filevalidator.KB  // 1024 bytes
-filevalidator.MB  // 1024 KB
-filevalidator.GB  // 1024 MB
+validator := filevalidator.NewBuilder().
+    MaxSize(10 * filevalidator.MB).
+    MinSize(1 * filevalidator.KB).
+    Accept("image/png", "image/jpeg").
+    Extensions(".png", ".jpg").
+    BlockExtensions(".exe", ".php").
+    StrictMIME().
+    RequireExtension().
+    WithContentValidation().
+    Build()
 ```
+
+### Presets
+
+```go
+// Images (jpg, png, gif, webp, svg, bmp, tiff) - 10MB max
+validator := filevalidator.ForImages().Build()
+
+// Documents (pdf, doc, docx, xls, xlsx, ppt, pptx, txt, csv) - 50MB max
+validator := filevalidator.ForDocuments().Build()
+
+// Audio/Video (mp3, wav, mp4, webm, avi, mov, mkv, etc.) - 500MB max
+validator := filevalidator.ForMedia().Build()
+
+// Archives (zip, tar, gz, tgz) - 1GB max
+validator := filevalidator.ForArchives().Build()
+
+// Web uploads (images + documents) - 25MB max
+validator := filevalidator.ForWeb().Build()
+
+// Strict mode (strict MIME, required extension, required content validation)
+validator := filevalidator.Strict().Accept("image/*").Build()
+```
+
+### Customize Presets
+
+```go
+validator := filevalidator.ForImages().
+    MaxSize(5 * filevalidator.MB).  // Override default 10MB
+    Extensions(".png", ".jpg").      // More restrictive
+    Build()
+```
+
+### All Builder Methods
+
+| Category | Methods |
+|----------|---------|
+| **Size** | `MaxSize(int64)`, `MinSize(int64)`, `SizeRange(min, max int64)` |
+| **MIME** | `Accept(...string)`, `AcceptImages()`, `AcceptDocuments()`, `AcceptAudio()`, `AcceptVideo()`, `AcceptMedia()`, `AcceptAll()`, `StrictMIME()` |
+| **Extensions** | `Extensions(...string)`, `BlockExtensions(...string)`, `RequireExtension()`, `AllowNoExtension()` |
+| **Filename** | `MaxNameLength(int)`, `FileNamePattern(*regexp.Regexp)`, `FileNamePatternString(string)`, `DangerousChars(...string)` |
+| **Content** | `WithContentValidation()`, `WithoutContentValidation()`, `RequireContentValidation()`, `WithRegistry(*ContentValidatorRegistry)`, `WithDefaultRegistry()`, `WithMinimalRegistry()` |
 
 ## Validation Methods
 
 ```go
-// Validate multipart.FileHeader (from HTTP uploads)
+// From multipart.FileHeader (HTTP uploads)
 err := validator.Validate(header)
 
-// Validate with context for cancellation
+// With context (cancellable)
 err := validator.ValidateWithContext(ctx, header)
 
-// Validate from io.Reader (must be io.Seeker for MIME detection)
-err := validator.ValidateReader(reader, "example.jpg", fileSize)
+// From io.Reader
+err := validator.ValidateReader(reader, "file.jpg", size)
 
-// Validate from byte slice
-err := validator.ValidateBytes(content, "example.jpg")
+// From bytes
+err := validator.ValidateBytes(data, "file.jpg")
 
-// Validate local file path
+// Local file
 err := filevalidator.ValidateLocalFile(validator, "/path/to/file.jpg")
+```
 
-// Stream validation for large files (memory-efficient)
-err := filevalidator.StreamValidate(reader, "large-file.zip", validator, 8192)
+## Validation Result (Detailed)
+
+For detailed validation information:
+
+```go
+builder := filevalidator.NewResultBuilder("photo.png", 1024)
+result := builder.
+    SetDetectedMIME("image/png").
+    AddCheck("size", true, "size within limits").
+    AddCheck("mime", true, "valid image type").
+    Build()
+
+fmt.Println(result.Summary())
+// ✓ photo.png (image/png, 1 KB) validated in 50µs
+
+fmt.Println(result.Valid)        // true
+fmt.Println(result.DetectedMIME) // image/png
+fmt.Println(result.Duration)     // 50µs
+```
+
+## Content Validators
+
+All validators read only headers - never full file content.
+
+### Supported Formats
+
+| Category | Formats | Validation |
+|----------|---------|------------|
+| **Archives** | ZIP, TAR, GZIP, TAR.GZ | Zip bomb, path traversal, nested archives |
+| **Images** | JPEG, PNG, GIF, WebP, BMP, TIFF, SVG, ICO | Dimensions, decompression bombs |
+| **Documents** | PDF | Header/trailer structure |
+| **Office** | DOCX, XLSX, PPTX | ZIP structure, macro detection |
+| **Video** | MP4, WebM, MKV, AVI, MOV, FLV | Magic bytes validation |
+| **Audio** | MP3, WAV, OGG, FLAC, AAC, M4A | Magic bytes validation |
+| **Text** | JSON, XML, CSV | Structure, depth limits, XXE protection |
+
+### Archive Validation (Zip Bomb Protection)
+
+```go
+validator := filevalidator.DefaultArchiveValidator()
+// MaxCompressionRatio: 100:1
+// MaxFiles: 1000
+// MaxUncompressedSize: 1GB
+// MaxNestedArchives: 3
+```
+
+Detects:
+- Zip bombs (high compression ratios)
+- Nested archive attacks
+- Path traversal (`../`, absolute paths)
+- File count bombs
+
+### Image Validation
+
+```go
+validator := filevalidator.DefaultImageValidator()
+// MaxWidth: 10000
+// MaxHeight: 10000
+// MaxPixels: 50 megapixels
+// MaxSVGSize: 5MB
+```
+
+Uses `image.DecodeConfig()` - reads only header bytes.
+
+### Office Document Validation
+
+```go
+validator := filevalidator.DefaultOfficeValidator()
+// AllowMacros: false (blocks .docm, .xlsm, .pptm)
+```
+
+Validates ZIP structure and required Office files.
+
+### XML Validation (XXE Protection)
+
+```go
+validator := filevalidator.DefaultXMLValidator()
+// AllowDTD: false (blocks XXE attacks)
+// MaxDepth: 100
+```
+
+### Custom Content Validator
+
+```go
+type MyValidator struct{}
+
+func (v *MyValidator) ValidateContent(reader io.Reader, size int64) error {
+    // Read only what you need
+    header := make([]byte, 512)
+    io.ReadFull(reader, header)
+
+    // Validate...
+    return nil
+}
+
+func (v *MyValidator) SupportedMIMETypes() []string {
+    return []string{"application/x-custom"}
+}
+
+// Register
+registry := filevalidator.DefaultRegistry()
+registry.Register("application/x-custom", &MyValidator{})
+```
+
+## MIME Detection
+
+Enhanced detection using magic bytes (60+ signatures):
+
+```go
+// From reader
+mime, err := filevalidator.DetectMIME(reader)
+
+// From bytes
+mime := filevalidator.DetectMIMEFromBytes(data)
+
+// Helpers
+filevalidator.IsBinaryMIME("image/png")       // true
+filevalidator.IsExecutableMIME("application/x-msdownload") // true
+filevalidator.GetMIMECategory("video/mp4")    // "video"
+```
+
+Detects: Images, video, audio, archives, documents, executables, fonts, and more.
+
+## Registry
+
+### Default (All Validators)
+
+```go
+registry := filevalidator.DefaultRegistry()
+// ~4.6µs to create, 38ns per lookup, ~1.5KB memory
+```
+
+### Specialized Registries
+
+```go
+registry := filevalidator.MinimalRegistry()      // ZIP, Image, PDF only
+registry := filevalidator.ImageOnlyRegistry()    // Images only
+registry := filevalidator.DocumentOnlyRegistry() // PDF + Office only
+registry := filevalidator.MediaOnlyRegistry()    // Audio + Video only
+```
+
+### Registry Operations
+
+```go
+registry.HasValidator("image/png")     // true
+registry.Count()                       // number of validators
+registry.RegisteredMIMETypes()         // []string of all types
+registry.Unregister("image/png")       // remove validator
+registry.Clone()                       // copy registry
 ```
 
 ## Error Handling
 
-The package provides structured errors with specific types:
-
 ```go
-import "github.com/gobeaver/beaver-kit/filevalidator"
-
 err := validator.Validate(header)
 if err != nil {
     switch {
     case filevalidator.IsErrorOfType(err, filevalidator.ErrorTypeSize):
         // File too large or too small
     case filevalidator.IsErrorOfType(err, filevalidator.ErrorTypeMIME):
-        // Invalid or unaccepted MIME type
-    case filevalidator.IsErrorOfType(err, filevalidator.ErrorTypeFileName):
-        // Invalid filename (length, dangerous chars, pattern)
+        // Invalid MIME type
     case filevalidator.IsErrorOfType(err, filevalidator.ErrorTypeExtension):
-        // Blocked or unallowed extension
+        // Blocked extension
+    case filevalidator.IsErrorOfType(err, filevalidator.ErrorTypeFileName):
+        // Invalid filename
     case filevalidator.IsErrorOfType(err, filevalidator.ErrorTypeContent):
-        // Content validation failed (zip bomb, malicious image, etc.)
-    default:
-        // Other error
+        // Content validation failed
     }
 }
 ```
 
-### Error Helper Functions
+## Size Constants
 
 ```go
-// Check if error is a ValidationError
-filevalidator.IsValidationError(err) bool
-
-// Check error type
-filevalidator.IsErrorOfType(err, filevalidator.ErrorTypeSize) bool
-
-// Get error type
-filevalidator.GetErrorType(err) ValidationErrorType
-
-// Get error message
-filevalidator.GetErrorMessage(err) string
+filevalidator.KB  // 1024
+filevalidator.MB  // 1024 * 1024
+filevalidator.GB  // 1024 * 1024 * 1024
 ```
 
-## Media Type Groups
-
-Use predefined groups to accept categories of files:
+## HTTP Example
 
 ```go
-// Accept all image types
-validator := filevalidator.New(filevalidator.Constraints{
-    AcceptedTypes: []string{string(filevalidator.AllowAllImages)},
-})
+func uploadHandler(w http.ResponseWriter, r *http.Request) {
+    // 1. Auth check (instant)
+    // 2. Rate limit (instant)
 
-// Accept multiple groups
-validator := filevalidator.New(filevalidator.Constraints{
-    AcceptedTypes: []string{
-        string(filevalidator.AllowAllImages),
-        string(filevalidator.AllowAllDocuments),
-    },
-})
-```
+    if err := r.ParseMultipartForm(10 << 20); err != nil {
+        http.Error(w, "Bad request", 400)
+        return
+    }
 
-### Available Groups
-
-| Group | MIME Types Included |
-|-------|---------------------|
-| `AllowAllImages` | jpeg, png, gif, webp, svg+xml, tiff, bmp, heic, heif |
-| `AllowAllDocuments` | pdf, msword, docx, xlsx, pptx, txt, csv, rtf |
-| `AllowAllAudio` | mpeg, wav, ogg, midi, aac, flac, mp4, webm, wma |
-| `AllowAllVideo` | mp4, mpeg, webm, quicktime, avi, wmv, 3gpp, flv |
-| `AllowAllText` | plain, html, css, csv, javascript, xml, markdown |
-| `AllowAll` | All MIME types (`*/*`) |
-
-### Custom MIME Mappings
-
-```go
-// Add custom extension mapping
-filevalidator.AddCustomMediaTypeMapping(".custom", "application/x-custom")
-
-// Add custom types to a group
-filevalidator.AddCustomMediaTypeGroupMapping(
-    filevalidator.AllowAllDocuments,
-    []string{"application/x-custom-doc"},
-)
-```
-
-## Content-Based Validation
-
-Deep content inspection protects against sophisticated attacks. Content validators are automatically registered for high-risk formats.
-
-### Archive Validation (Zip Bomb Protection)
-
-```go
-// Default constraints include archive validation
-validator := filevalidator.NewDefault()
-
-// Custom archive validator
-archiveValidator := &filevalidator.ArchiveValidator{
-    MaxCompressionRatio: 100.0,           // Maximum 100:1 ratio
-    MaxFiles:            1000,            // Maximum files per archive
-    MaxUncompressedSize: 100 * filevalidator.GB,
-    MaxNestedArchives:   5,               // Nested archive limit
-    MaxDepth:            10,              // Directory depth limit
-}
-
-constraints := filevalidator.DefaultConstraints()
-constraints.ContentValidatorRegistry.Register("application/zip", archiveValidator)
-validator := filevalidator.New(constraints)
-```
-
-**Protected formats:** zip, jar, war, ear, rar, 7z, tar, gz, bz2, xz
-
-**Detects:**
-- Zip bombs (excessive compression ratios)
-- Too many files in archive
-- Nested archive attacks
-- Directory traversal attempts (`../`, absolute paths)
-
-### Image Validation
-
-```go
-// ImageOnlyConstraints() includes image validation
-validator := filevalidator.New(filevalidator.ImageOnlyConstraints())
-
-// Custom image validator
-imageValidator := &filevalidator.ImageValidator{
-    MaxWidth:       10000,
-    MaxHeight:      10000,
-    MaxPixels:      50000000,  // 50 megapixels
-    MinWidth:       1,
-    MinHeight:      1,
-    AllowSVG:       true,
-    MaxSVGSize:     5 * filevalidator.MB,
-    ValidatePixels: true,
-}
-
-constraints := filevalidator.DefaultConstraints()
-constraints.ContentValidatorRegistry.Register("image/jpeg", imageValidator)
-constraints.ContentValidatorRegistry.Register("image/png", imageValidator)
-validator := filevalidator.New(constraints)
-```
-
-**Protected formats:** JPEG, PNG, GIF, WebP, BMP, TIFF, ICO, SVG
-
-**Detects:**
-- Decompression bombs (excessive dimensions)
-- Malicious SVG content (scripts, event handlers, iframes)
-- Embedded scripts in image metadata
-- Invalid file structure
-
-### PDF Validation
-
-```go
-// DocumentOnlyConstraints() includes PDF validation
-validator := filevalidator.New(filevalidator.DocumentOnlyConstraints())
-
-// Custom PDF validator
-pdfValidator := &filevalidator.PDFValidator{
-    AllowJavaScript:    false,  // Block JavaScript
-    AllowEmbeddedFiles: false,  // Block embedded files
-    AllowForms:         true,   // Allow form fields
-    AllowActions:       false,  // Block actions
-    MaxSize:            50 * filevalidator.MB,
-    ValidateStructure:  true,
-}
-
-constraints := filevalidator.DefaultConstraints()
-constraints.ContentValidatorRegistry.Register("application/pdf", pdfValidator)
-validator := filevalidator.New(constraints)
-```
-
-**Detects:**
-- JavaScript execution
-- Embedded executable files
-- Launch actions (always blocked)
-- Suspicious URLs and executable references
-- Excessive obfuscation
-
-### Custom Content Validators
-
-Implement `ContentValidator` for custom file types:
-
-```go
-type ContentValidator interface {
-    ValidateContent(reader io.Reader, size int64) error
-    SupportedMIMETypes() []string
-}
-```
-
-```go
-type CustomValidator struct{}
-
-func (v *CustomValidator) ValidateContent(reader io.Reader, size int64) error {
-    data, err := io.ReadAll(reader)
+    file, header, err := r.FormFile("file")
     if err != nil {
-        return filevalidator.NewValidationError(
-            filevalidator.ErrorTypeContent,
-            "failed to read content",
-        )
+        http.Error(w, "No file", 400)
+        return
     }
-    // Your validation logic
-    return nil
-}
+    defer file.Close()
 
-func (v *CustomValidator) SupportedMIMETypes() []string {
-    return []string{"application/x-custom"}
-}
-
-// Register
-constraints := filevalidator.DefaultConstraints()
-constraints.ContentValidatorRegistry.Register("application/x-custom", &CustomValidator{})
-```
-
-### Content Validation Modes
-
-```go
-constraints := filevalidator.DefaultConstraints()
-
-// Enable content validation (default: true)
-constraints.ContentValidationEnabled = true
-
-// Make content validation mandatory (default: false)
-// When false, content validation failures are warnings
-// When true, content validation failures block the upload
-constraints.RequireContentValidation = true
-```
-
-## Helper Functions
-
-```go
-// Format bytes as human-readable string
-filevalidator.FormatSizeReadable(1536)     // "1.5 KB"
-filevalidator.FormatSizeReadable(2097152)  // "2 MB"
-
-// Detect content type from bytes
-contentType := filevalidator.DetectContentType(data)
-
-// Detect content type from file path
-contentType, err := filevalidator.DetectContentTypeFromFile("/path/to/file")
-
-// Check file type categories
-filevalidator.IsImage("image/jpeg")           // true
-filevalidator.IsDocument("application/pdf")  // true
-
-// Check extension support
-filevalidator.HasSupportedImageExtension("photo.jpg")     // true
-filevalidator.HasSupportedDocumentExtension("report.pdf") // true
-
-// Get MIME type for extension
-filevalidator.MIMETypeForExtension(".jpg")  // "image/jpeg"
-```
-
-## Integration with FileKit
-
-```go
-package main
-
-import (
-    "bytes"
-    "context"
-    "io"
-    "path/filepath"
-
-    "github.com/gobeaver/beaver-kit/filekit"
-    "github.com/gobeaver/beaver-kit/filevalidator"
-)
-
-type ValidatedUploader struct {
-    uploader  filekit.Uploader
-    validator filevalidator.Validator
-}
-
-func NewValidatedUploader(uploader filekit.Uploader) *ValidatedUploader {
-    return &ValidatedUploader{
-        uploader:  uploader,
-        validator: filevalidator.NewDefault(),
-    }
-}
-
-func (v *ValidatedUploader) Upload(ctx context.Context, path string, content io.Reader, options ...filekit.Option) error {
-    var buf bytes.Buffer
-    tee := io.TeeReader(content, &buf)
-
-    if err := v.validator.ValidateReader(tee, filepath.Base(path), -1); err != nil {
-        return err
+    // 3. Validate (fast - header only)
+    validator := filevalidator.ForImages().Build()
+    if err := validator.Validate(header); err != nil {
+        http.Error(w, err.Error(), 400)
+        return
     }
 
-    return v.uploader.Upload(ctx, path, &buf, options...)
+    // 4. (Optional) Malware scan with ClamAV
+    // 5. Save file
+
+    w.WriteHeader(200)
 }
 ```
+
+## Performance
+
+| Operation | Time | Memory |
+|-----------|------|--------|
+| Create default registry | 4.6µs | 10KB |
+| Validator lookup | 38ns | 0 allocs |
+| Image validation (header) | ~50µs | ~2KB |
+| ZIP validation (central dir) | ~100µs | ~2KB |
+
+Large files (500MB+) use the same ~2KB memory - only headers are read.
 
 ## Design Philosophy
 
-FileValidator follows Go's philosophy of keeping libraries focused and composable. Several concerns are intentionally left to the caller:
+This package does **type validation**, not security scanning.
 
-### Concurrency
-
-The validator performs synchronous validation. Handle concurrency at the application level:
-
-```go
-import (
-    "mime/multipart"
-    "sync"
-
-    "github.com/gobeaver/beaver-kit/filevalidator"
-)
-
-// Concurrent validation of multiple files
-func validateFiles(files []*multipart.FileHeader) []error {
-    validator := filevalidator.NewDefault()
-    errors := make([]error, len(files))
-    var wg sync.WaitGroup
-
-    for i, file := range files {
-        wg.Add(1)
-        go func(idx int, f *multipart.FileHeader) {
-            defer wg.Done()
-            errors[idx] = validator.Validate(f)
-        }(i, file)
-    }
-
-    wg.Wait()
-    return errors
-}
-
-// Async validation with channels
-func validateAsync(file *multipart.FileHeader) <-chan error {
-    result := make(chan error, 1)
-    go func() {
-        validator := filevalidator.NewDefault()
-        result <- validator.Validate(file)
-        close(result)
-    }()
-    return result
-}
+```
+┌─────────────────────────────────────────┐
+│ 1. Auth + Rate Limit        (instant)   │
+│ 2. Size + Extension Check   (instant)   │
+│ 3. Type Validation (this)   (fast)      │  ← You are here
+│ 4. Malware Scan (ClamAV)    (slow)      │
+│ 5. Storage                  (I/O)       │
+└─────────────────────────────────────────┘
 ```
 
-### Logging
+**What this package does:**
+- ✅ Validates file types
+- ✅ Validates file structure
+- ✅ Detects zip bombs
+- ✅ Blocks path traversal
 
-The library returns structured errors but does not include logging. Integrate with your preferred logger:
-
-```go
-import (
-    "log/slog"
-    "mime/multipart"
-
-    "github.com/gobeaver/beaver-kit/filevalidator"
-    "go.uber.org/zap"
-)
-
-// With zap
-func validateWithZap(logger *zap.Logger, validator filevalidator.Validator, file *multipart.FileHeader) error {
-    err := validator.Validate(file)
-    if err != nil {
-        logger.Warn("file validation failed",
-            zap.String("filename", file.Filename),
-            zap.Int64("size", file.Size),
-            zap.Error(err),
-        )
-    }
-    return err
-}
-
-// With slog
-func validateWithSlog(validator filevalidator.Validator, file *multipart.FileHeader) error {
-    err := validator.Validate(file)
-    if err != nil {
-        slog.Warn("file validation failed",
-            "filename", file.Filename,
-            "size", file.Size,
-            "error", err,
-        )
-    }
-    return err
-}
-```
-
-### Rate Limiting
-
-Rate limiting belongs at the infrastructure or middleware layer:
-
-```go
-import (
-    "net/http"
-
-    "github.com/gobeaver/beaver-kit/filevalidator"
-    "golang.org/x/time/rate"
-)
-
-func RateLimitedUploadHandler(validator filevalidator.Validator, limiter *rate.Limiter) http.HandlerFunc {
-    return func(w http.ResponseWriter, r *http.Request) {
-        if !limiter.Allow() {
-            http.Error(w, "Too many requests", http.StatusTooManyRequests)
-            return
-        }
-
-        file, header, err := r.FormFile("file")
-        if err != nil {
-            http.Error(w, "Bad request", http.StatusBadRequest)
-            return
-        }
-        defer file.Close()
-
-        if err := validator.Validate(header); err != nil {
-            http.Error(w, err.Error(), http.StatusBadRequest)
-            return
-        }
-
-        // Process file...
-    }
-}
-```
-
-### Metrics
-
-Wrap the validator for observability:
-
-```go
-import (
-    "mime/multipart"
-    "time"
-
-    "github.com/gobeaver/beaver-kit/filevalidator"
-    "github.com/prometheus/client_golang/prometheus"
-)
-
-type InstrumentedValidator struct {
-    validator filevalidator.Validator
-    total     prometheus.Counter
-    errors    prometheus.Counter
-    duration  prometheus.Histogram
-}
-
-func (v *InstrumentedValidator) Validate(file *multipart.FileHeader) error {
-    start := time.Now()
-    err := v.validator.Validate(file)
-
-    v.total.Inc()
-    v.duration.Observe(time.Since(start).Seconds())
-    if err != nil {
-        v.errors.Inc()
-    }
-
-    return err
-}
-```
-
-### Responsibility Matrix
-
-| Concern | Library | Caller |
-|---------|:-------:|:------:|
-| Validation logic | ✓ | |
-| Structured errors | ✓ | |
-| Content inspection | ✓ | |
-| Concurrency | | ✓ |
-| Logging | | ✓ |
-| Rate limiting | | ✓ |
-| Metrics | | ✓ |
-| Retries | | ✓ |
-
-This design:
-- **Avoids dependency bloat** - No forced logging or metrics libraries
-- **Stays composable** - Works with any framework or architecture
-- **Follows Go idioms** - Libraries do one thing well
-- **Enables flexibility** - Integrate with your existing infrastructure
-
-## API Reference
-
-### Types
-
-```go
-type Validator interface {
-    Validate(file *multipart.FileHeader) error
-    ValidateWithContext(ctx context.Context, file *multipart.FileHeader) error
-    ValidateReader(reader io.Reader, filename string, size int64) error
-    ValidateBytes(content []byte, filename string) error
-    GetConstraints() Constraints
-}
-
-type Constraints struct {
-    MaxFileSize              int64
-    MinFileSize              int64
-    AcceptedTypes            []string
-    AllowedExts              []string
-    BlockedExts              []string
-    MaxNameLength            int
-    FileNameRegex            *regexp.Regexp
-    DangerousChars           []string
-    RequireExtension         bool
-    StrictMIMETypeValidation bool
-    ContentValidationEnabled bool
-    RequireContentValidation bool
-    ContentValidatorRegistry *ContentValidatorRegistry
-}
-
-type ValidationError struct {
-    Type    ValidationErrorType
-    Message string
-}
-
-type ValidationErrorType string
-
-const (
-    ErrorTypeSize      ValidationErrorType = "size"
-    ErrorTypeMIME      ValidationErrorType = "mime"
-    ErrorTypeFileName  ValidationErrorType = "filename"
-    ErrorTypeExtension ValidationErrorType = "extension"
-    ErrorTypeContent   ValidationErrorType = "content"
-)
-```
-
-### Constructors
-
-```go
-func New(constraints Constraints) *FileValidator
-func NewDefault() *FileValidator
-func NewConstraintsBuilder() *ConstraintsBuilder
-
-func DefaultConstraints() Constraints
-func ImageOnlyConstraints() Constraints
-func DocumentOnlyConstraints() Constraints
-func MediaOnlyConstraints() Constraints
-
-func DefaultArchiveValidator() *ArchiveValidator
-func DefaultImageValidator() *ImageValidator
-func DefaultPDFValidator() *PDFValidator
-```
+**What this package doesn't do:**
+- ❌ Malware detection (use ClamAV)
+- ❌ Virus scanning
+- ❌ Deep content analysis
 
 ## License
 
-This package is licensed under the Apache 2.0 License. See the [LICENSE](../LICENSE) file for details.
+Apache 2.0 License. See [LICENSE](../LICENSE) for details.
