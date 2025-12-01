@@ -90,7 +90,7 @@ func (v *OfficeValidator) validateWithReaderAt(reader io.ReaderAt, size int64) e
 		}
 
 		totalUncompressed += file.UncompressedSize64
-		if totalUncompressed > uint64(v.MaxUncompressedSize) {
+		if v.MaxUncompressedSize > 0 && totalUncompressed > uint64(v.MaxUncompressedSize) { //nolint:gosec // MaxUncompressedSize is validated to be positive
 			return NewValidationError(ErrorTypeContent,
 				fmt.Sprintf("uncompressed size exceeds limit: %d", v.MaxUncompressedSize))
 		}
@@ -173,8 +173,8 @@ func (v *OfficeValidator) SupportedMIMETypes() []string {
 
 	if v.AllowMacros {
 		types = append(types,
-			"application/vnd.ms-word.document.macroEnabled.12",         // .docm
-			"application/vnd.ms-excel.sheet.macroEnabled.12",           // .xlsm
+			"application/vnd.ms-word.document.macroEnabled.12",           // .docm
+			"application/vnd.ms-excel.sheet.macroEnabled.12",             // .xlsm
 			"application/vnd.ms-powerpoint.presentation.macroEnabled.12", // .pptm
 		)
 	}

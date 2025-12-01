@@ -93,7 +93,7 @@ func New(cfg Config) (Cache, error) {
 // Default returns the global cache instance
 func Default() Cache {
 	if defaultCache == nil {
-		Init()
+		_ = Init()
 	}
 	return defaultCache
 }

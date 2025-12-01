@@ -131,8 +131,8 @@ func TestMultiProviderService_ListProviders(t *testing.T) {
 		RedirectURL:  "http://localhost/callback",
 	})
 
-	service.RegisterProvider("google", googleProvider)
-	service.RegisterProvider("github", githubProvider)
+	_ = service.RegisterProvider("google", googleProvider)
+	_ = service.RegisterProvider("github", githubProvider)
 
 	// Should list both providers
 	providers = service.ListProviders()
@@ -179,7 +179,7 @@ func TestMultiProviderService_GetAuthURL(t *testing.T) {
 		ClientSecret: "test-google-secret",
 		RedirectURL:  "http://localhost/callback",
 	})
-	service.RegisterProvider("google", googleProvider)
+	_ = service.RegisterProvider("google", googleProvider)
 
 	ctx := context.Background()
 
@@ -260,7 +260,7 @@ func TestMultiProviderService_UnregisterProvider(t *testing.T) {
 		ClientSecret: "test-google-secret",
 		RedirectURL:  "http://localhost/callback",
 	})
-	service.RegisterProvider("google", googleProvider)
+	_ = service.RegisterProvider("google", googleProvider)
 
 	// Verify it exists
 	_, err = service.GetProvider("google")

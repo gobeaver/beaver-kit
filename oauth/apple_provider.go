@@ -137,7 +137,7 @@ func (a *AppleProvider) Exchange(ctx context.Context, code string, pkce *PKCECha
 		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 			return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 		}
-		return nil, &OAuthError{
+		return nil, &Error{
 			Provider:    "apple",
 			Code:        errResp.Error,
 			Description: errResp.ErrorDescription,
@@ -159,7 +159,7 @@ func (a *AppleProvider) Exchange(ctx context.Context, code string, pkce *PKCECha
 	}
 
 	if tokenResp.Error != "" {
-		return nil, &OAuthError{
+		return nil, &Error{
 			Provider:    "apple",
 			Code:        tokenResp.Error,
 			Description: tokenResp.ErrorDescription,
@@ -219,7 +219,7 @@ func (a *AppleProvider) RefreshToken(ctx context.Context, refreshToken string) (
 		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 			return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 		}
-		return nil, &OAuthError{
+		return nil, &Error{
 			Provider:    "apple",
 			Code:        errResp.Error,
 			Description: errResp.ErrorDescription,
@@ -240,7 +240,7 @@ func (a *AppleProvider) RefreshToken(ctx context.Context, refreshToken string) (
 	}
 
 	if tokenResp.Error != "" {
-		return nil, &OAuthError{
+		return nil, &Error{
 			Provider:    "apple",
 			Code:        tokenResp.Error,
 			Description: tokenResp.ErrorDescription,

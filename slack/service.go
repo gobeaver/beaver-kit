@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html"
 	"io"
@@ -235,7 +236,7 @@ func validateConfig(cfg Config) error {
 // Reset clears the global instance (for testing)
 func Reset() {
 	if defaultService != nil {
-		defaultService.Shutdown(context.Background())
+		_ = defaultService.Shutdown(context.Background())
 	}
 	defaultService = nil
 	defaultOnce = sync.Once{}
@@ -245,7 +246,7 @@ func Reset() {
 // Slack returns the global slack service instance
 func Slack() *Service {
 	if defaultService == nil {
-		Init() // Initialize with defaults if needed
+		_ = Init() // Initialize with defaults if needed
 	}
 	return defaultService
 }
@@ -803,14 +804,14 @@ func (s *Service) sendWithRetry(ctx context.Context, payload []byte) (string, er
 			actualDelay := delay
 			if s.retryJitter {
 				// Add up to 25% jitter
-				jitter := time.Duration(rand.Float64() * float64(delay) * 0.25)
+				jitter := time.Duration(rand.Float64() * float64(delay) * 0.25) //nolint:gosec // jitter doesn't require crypto strength
 				actualDelay = delay + jitter
 			}
 
 			// Wait before retry with exponential backoff
 			select {
 			case <-ctx.Done():
-				return "", fmt.Errorf("%w: %v", ErrContextCanceled, ctx.Err())
+				return "", fmt.Errorf("%w: %w", ErrContextCanceled, ctx.Err())
 			case <-time.After(actualDelay):
 				// Double the delay for next attempt, up to max
 				delay = time.Duration(math.Min(float64(delay*2), float64(s.retryMaxDelay)))
@@ -842,7 +843,7 @@ func (s *Service) sendWithRetry(ctx context.Context, payload []byte) (string, er
 		}
 	}
 
-	return "", fmt.Errorf("%w: %v", ErrMaxRetriesExceeded, lastErr)
+	return "", fmt.Errorf("%w: %w", ErrMaxRetriesExceeded, lastErr)
 }
 
 // executeWithCircuitBreaker executes the request with circuit breaker protection
@@ -856,7 +857,7 @@ func (s *Service) executeWithCircuitBreaker(ctx context.Context, payload []byte)
 	})
 
 	if cbErr != nil {
-		if cbErr == ErrCircuitOpen && s.metrics != nil {
+		if errors.Is(cbErr, ErrCircuitOpen) && s.metrics != nil {
 			s.metrics.RecordCircuitOpen()
 		}
 		return "", cbErr
@@ -884,7 +885,7 @@ func (s *Service) doRequest(ctx context.Context, payload []byte) (string, error)
 	// Send the request
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrWebhookFailed, err)
+		return "", fmt.Errorf("%w: %w", ErrWebhookFailed, err)
 	}
 	defer resp.Body.Close()
 
@@ -920,17 +921,17 @@ func (s *Service) doRequest(ctx context.Context, payload []byte) (string, error)
 // isRetryableError determines if an error should trigger a retry
 func isRetryableError(err error) bool {
 	// Don't retry circuit breaker open errors
-	if err == ErrCircuitOpen {
+	if errors.Is(err, ErrCircuitOpen) {
 		return false
 	}
 
 	// Retry on rate limiting
-	if err == ErrRateLimited {
+	if errors.Is(err, ErrRateLimited) {
 		return true
 	}
 
 	// Retry on webhook failures (network issues)
-	if err == ErrWebhookFailed {
+	if errors.Is(err, ErrWebhookFailed) {
 		return true
 	}
 

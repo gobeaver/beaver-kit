@@ -149,8 +149,8 @@ func (e *EncryptedFS) Download(ctx context.Context, path string) (io.ReadCloser,
 
 		// Read and decrypt in chunks
 		for {
-			n, err := encryptedContent.Read(buf)
-			if err != nil && err != io.EOF {
+			n, readErr := encryptedContent.Read(buf)
+			if readErr != nil && !errors.Is(readErr, io.EOF) {
 				return
 			}
 
@@ -161,29 +161,28 @@ func (e *EncryptedFS) Download(ctx context.Context, path string) (io.ReadCloser,
 				// We need at least one block to decrypt
 				if len(data) < gcm.Overhead() {
 					leftover = data
-					if err == io.EOF {
+					if errors.Is(readErr, io.EOF) {
 						// If we're at EOF and don't have enough data, something is wrong
-						err = errors.New("invalid encrypted data")
 						return
 					}
 					continue
 				}
 
 				// Try to decrypt as much as we can
-				plaintext, err := gcm.Open(nil, nonce, data, nil)
-				if err != nil {
+				plaintext, decryptErr := gcm.Open(nil, nonce, data, nil)
+				if decryptErr != nil {
 					return
 				}
 
 				// Write the decrypted data to the pipe
-				if _, err := pw.Write(plaintext); err != nil {
+				if _, writeErr := pw.Write(plaintext); writeErr != nil {
 					return
 				}
 
 				leftover = nil
 			}
 
-			if err == io.EOF {
+			if errors.Is(readErr, io.EOF) {
 				break
 			}
 		}

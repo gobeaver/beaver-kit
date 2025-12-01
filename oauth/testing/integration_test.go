@@ -39,7 +39,7 @@ func TestCompleteOAuthFlow(t *testing.T) {
 		PKCEEnabled:    true,
 		SessionTimeout: 5 * time.Minute,
 	})
-	multiService.RegisterProvider("test", provider)
+	_ = multiService.RegisterProvider("test", provider)
 
 	ctx := context.Background()
 

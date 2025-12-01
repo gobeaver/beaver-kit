@@ -21,7 +21,7 @@ import (
 
 // Global instance management
 var (
-	defaultService CaptchaService
+	defaultService Service
 	defaultOnce    sync.Once
 	defaultErr     error
 )
@@ -55,7 +55,7 @@ func (b *Builder) Init() error {
 }
 
 // New creates a new CAPTCHA service using the builder's prefix
-func (b *Builder) New() (CaptchaService, error) {
+func (b *Builder) New() (Service, error) {
 	cfg := &Config{}
 	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
 		return nil, err
@@ -83,7 +83,7 @@ func Init(configs ...Config) error {
 }
 
 // New creates a new instance with given config
-func New(cfg Config) (CaptchaService, error) {
+func New(cfg Config) (Service, error) {
 	// Validation
 	if err := validateConfig(cfg); err != nil {
 		return nil, fmt.Errorf("invalid config: %w", err)
@@ -142,10 +142,10 @@ func Reset() {
 	defaultErr = nil
 }
 
-// Service returns the global captcha service instance
-func Service() CaptchaService {
+// Default returns the global captcha service instance
+func Default() Service {
 	if defaultService == nil {
-		Init() // Initialize with defaults if needed
+		_ = Init() // Initialize with defaults if needed
 	}
 	return defaultService
 }
@@ -161,8 +161,8 @@ func (d *DisabledService) GenerateHTML() string {
 	return ""
 }
 
-// CaptchaService defines the interface for all captcha services
-type CaptchaService interface {
+// Service defines the interface for all captcha services
+type Service interface {
 	// Validate validates a captcha token with the remote service
 	Validate(ctx context.Context, token string, remoteIP string) (bool, error)
 
@@ -205,7 +205,7 @@ type RecaptchaResponse struct {
 	ErrorCodes  []string `json:"error-codes,omitempty"`
 }
 
-// GoogleCaptchaService implements the CaptchaService interface for Google reCAPTCHA
+// GoogleCaptchaService implements the Service interface for Google reCAPTCHA
 type GoogleCaptchaService struct {
 	client    *http.Client
 	siteKey   string
@@ -229,7 +229,7 @@ func NewGoogleCaptcha(siteKey, secretKey string, version int) *GoogleCaptchaServ
 	}
 }
 
-// Validate implements the CaptchaService interface for Google reCAPTCHA
+// Validate implements the Service interface for Google reCAPTCHA
 func (g *GoogleCaptchaService) Validate(ctx context.Context, token string, remoteIP string) (bool, error) {
 	// Prepare form data
 	data := url.Values{
@@ -300,7 +300,7 @@ func (g *GoogleCaptchaService) ValidateV3WithScore(ctx context.Context, token, r
 	return true, 0.9, nil // Placeholder - in a real implementation, use actual values
 }
 
-// GenerateHTML implements the CaptchaService interface for Google reCAPTCHA
+// GenerateHTML implements the Service interface for Google reCAPTCHA
 func (g *GoogleCaptchaService) GenerateHTML() string {
 	if g.version == 3 {
 		return fmt.Sprintf(`
@@ -337,7 +337,7 @@ type HCaptchaResponse struct {
 	ScoreReason []string `json:"score_reason,omitempty"` // Enterprise only
 }
 
-// HCaptchaService implements the CaptchaService interface for hCaptcha
+// HCaptchaService implements the Service interface for hCaptcha
 type HCaptchaService struct {
 	client    *http.Client
 	siteKey   string
@@ -355,7 +355,7 @@ func NewHCaptcha(siteKey, secretKey string) *HCaptchaService {
 	}
 }
 
-// Validate implements the CaptchaService interface for hCaptcha
+// Validate implements the Service interface for hCaptcha
 func (h *HCaptchaService) Validate(ctx context.Context, token string, remoteIP string) (bool, error) {
 	// Prepare form data
 	data := url.Values{
@@ -408,7 +408,7 @@ func (h *HCaptchaService) Validate(ctx context.Context, token string, remoteIP s
 	return result.Success, nil
 }
 
-// GenerateHTML implements the CaptchaService interface for hCaptcha
+// GenerateHTML implements the Service interface for hCaptcha
 func (h *HCaptchaService) GenerateHTML() string {
 	return fmt.Sprintf(`
 		<script src="https://js.hcaptcha.com/1/api.js" async defer></script>
@@ -430,7 +430,7 @@ type TurnstileResponse struct {
 	CData       string   `json:"cdata,omitempty"`
 }
 
-// TurnstileService implements the CaptchaService interface for Cloudflare Turnstile
+// TurnstileService implements the Service interface for Cloudflare Turnstile
 type TurnstileService struct {
 	client    *http.Client
 	siteKey   string
@@ -448,7 +448,7 @@ func NewTurnstile(siteKey, secretKey string) *TurnstileService {
 	}
 }
 
-// Validate implements the CaptchaService interface for Turnstile
+// Validate implements the Service interface for Turnstile
 func (t *TurnstileService) Validate(ctx context.Context, token string, remoteIP string) (bool, error) {
 	// Prepare request data
 	data := map[string]string{
@@ -506,7 +506,7 @@ func (t *TurnstileService) Validate(ctx context.Context, token string, remoteIP 
 	return result.Success, nil
 }
 
-// GenerateHTML implements the CaptchaService interface for Turnstile
+// GenerateHTML implements the Service interface for Turnstile
 func (t *TurnstileService) GenerateHTML() string {
 	return fmt.Sprintf(`
 		<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>

@@ -195,7 +195,7 @@ func (s *MultiProviderService) Exchange(ctx context.Context, providerName, code,
 	// Retrieve and immediately delete session to prevent replay attacks
 	sessionData, err := s.sessions.RetrieveAndDelete(ctx, state)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidState, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidState, err)
 	}
 
 	// Validate session hasn't expired
@@ -234,7 +234,7 @@ func (s *MultiProviderService) Exchange(ctx context.Context, providerName, code,
 	// Cache token if enabled
 	if s.config.TokenCacheDuration > 0 {
 		cacheKey := fmt.Sprintf("token:%s:%s", providerName, code)
-		s.tokens.Store(ctx, cacheKey, token)
+		_ = s.tokens.Store(ctx, cacheKey, token)
 	}
 
 	return token, nil
@@ -296,7 +296,7 @@ func (s *MultiProviderService) RevokeToken(ctx context.Context, providerName, to
 func (s *MultiProviderService) ValidateState(ctx context.Context, state string) (*SessionData, error) {
 	sessionData, err := s.sessions.Retrieve(ctx, state)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidState, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidState, err)
 	}
 
 	if sessionData.IsExpired() {

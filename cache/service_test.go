@@ -105,8 +105,8 @@ func testCacheOperations(t *testing.T, c cache.Cache) {
 	}
 
 	// Test Clear
-	c.Set(ctx, "key1", []byte("value1"), 0)
-	c.Set(ctx, "key2", []byte("value2"), 0)
+	_ = c.Set(ctx, "key1", []byte("value1"), 0)
+	_ = c.Set(ctx, "key2", []byte("value2"), 0)
 
 	err = c.Clear(ctx)
 	if err != nil {

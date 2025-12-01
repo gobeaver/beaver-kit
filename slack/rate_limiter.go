@@ -139,14 +139,6 @@ func (l *NoOpLimiter) Wait(ctx context.Context) error {
 	return nil
 }
 
-// min returns the minimum of two float64 values
-func min(a, b float64) float64 {
-	if a < b {
-		return a
-	}
-	return b
-}
-
 // RateLimitedError wraps an error with rate limit information
 type RateLimitedError struct {
 	RetryAfter time.Duration

@@ -14,8 +14,8 @@ type item struct {
 	size       int64
 }
 
-// MemoryCache implements an in-memory cache
-type MemoryCache struct {
+// Cache implements an in-memory cache
+type Cache struct {
 	mu              sync.RWMutex
 	items           map[string]*item
 	maxSize         int64
@@ -38,7 +38,7 @@ type Config struct {
 }
 
 // New creates a new memory cache instance
-func New(cfg Config) (*MemoryCache, error) {
+func New(cfg Config) (*Cache, error) {
 	// Set defaults
 	if cfg.CleanupInterval == 0 {
 		cfg.CleanupInterval = 1 * time.Minute
@@ -54,7 +54,7 @@ func New(cfg Config) (*MemoryCache, error) {
 		}
 	}
 
-	mc := &MemoryCache{
+	mc := &Cache{
 		items:           make(map[string]*item),
 		maxSize:         cfg.MaxSize,
 		maxKeys:         cfg.MaxKeys,
@@ -71,7 +71,7 @@ func New(cfg Config) (*MemoryCache, error) {
 }
 
 // Get retrieves a value by key
-func (mc *MemoryCache) Get(ctx context.Context, key string) ([]byte, error) {
+func (mc *Cache) Get(ctx context.Context, key string) ([]byte, error) {
 	mc.mu.RLock()
 	defer mc.mu.RUnlock()
 
@@ -90,7 +90,7 @@ func (mc *MemoryCache) Get(ctx context.Context, key string) ([]byte, error) {
 }
 
 // Set stores a value with optional TTL
-func (mc *MemoryCache) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+func (mc *Cache) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
 
@@ -138,7 +138,7 @@ func (mc *MemoryCache) Set(ctx context.Context, key string, value []byte, ttl ti
 }
 
 // Delete removes a key
-func (mc *MemoryCache) Delete(ctx context.Context, key string) error {
+func (mc *Cache) Delete(ctx context.Context, key string) error {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
 
@@ -152,7 +152,7 @@ func (mc *MemoryCache) Delete(ctx context.Context, key string) error {
 }
 
 // Exists checks if a key exists
-func (mc *MemoryCache) Exists(ctx context.Context, key string) (bool, error) {
+func (mc *Cache) Exists(ctx context.Context, key string) (bool, error) {
 	mc.mu.RLock()
 	defer mc.mu.RUnlock()
 
@@ -171,7 +171,7 @@ func (mc *MemoryCache) Exists(ctx context.Context, key string) (bool, error) {
 }
 
 // Clear removes all keys
-func (mc *MemoryCache) Clear(ctx context.Context) error {
+func (mc *Cache) Clear(ctx context.Context) error {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
 
@@ -192,19 +192,19 @@ func (mc *MemoryCache) Clear(ctx context.Context) error {
 }
 
 // Close closes the cache
-func (mc *MemoryCache) Close() error {
+func (mc *Cache) Close() error {
 	close(mc.stopCleanup)
 	return nil
 }
 
 // Ping checks if cache is operational
-func (mc *MemoryCache) Ping(ctx context.Context) error {
+func (mc *Cache) Ping(ctx context.Context) error {
 	// Memory cache is always available
 	return nil
 }
 
 // cleanupExpired removes expired items periodically
-func (mc *MemoryCache) cleanupExpired() {
+func (mc *Cache) cleanupExpired() {
 	ticker := time.NewTicker(mc.cleanupInterval)
 	defer ticker.Stop()
 
@@ -219,7 +219,7 @@ func (mc *MemoryCache) cleanupExpired() {
 }
 
 // removeExpired removes all expired items
-func (mc *MemoryCache) removeExpired() {
+func (mc *Cache) removeExpired() {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
 
@@ -233,7 +233,7 @@ func (mc *MemoryCache) removeExpired() {
 }
 
 // Stats returns cache statistics
-func (mc *MemoryCache) Stats() map[string]interface{} {
+func (mc *Cache) Stats() map[string]interface{} {
 	mc.mu.RLock()
 	defer mc.mu.RUnlock()
 

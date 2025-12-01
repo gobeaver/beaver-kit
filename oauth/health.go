@@ -260,7 +260,7 @@ func (h *DefaultHealthChecker) checkSessionStore(ctx context.Context) CheckResul
 	}
 
 	// Clean up
-	store.Delete(ctx, testKey)
+	_ = store.Delete(ctx, testKey)
 
 	return CheckResult{
 		Status:      HealthStatusHealthy,
@@ -404,7 +404,7 @@ func (h *DefaultHealthChecker) checkRateLimiter(ctx context.Context) CheckResult
 	}
 
 	// Clean up
-	h.rateLimiter.Reset(ctx, testKey)
+	_ = h.rateLimiter.Reset(ctx, testKey)
 
 	message := fmt.Sprintf("Rate limiter operational: limit=%d, remaining=%d",
 		status.Limit, status.Remaining)
@@ -480,7 +480,7 @@ func (h *DefaultHealthChecker) getHealthMetrics() *HealthMetrics {
 	// Get average latency
 	avgLatency := int64(0)
 	if rt, exists := metrics.ResponseTimes["token_exchange"]; exists && rt.Count > 0 {
-		avgLatency = int64(rt.Average.Milliseconds())
+		avgLatency = rt.Average.Milliseconds()
 	}
 
 	return &HealthMetrics{
@@ -526,7 +526,7 @@ func (h *HealthHandler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	// Write response
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(health)
+	_ = json.NewEncoder(w).Encode(health)
 }
 
 // HandleLiveness handles the liveness probe endpoint
@@ -534,7 +534,7 @@ func (h *HealthHandler) HandleLiveness(w http.ResponseWriter, r *http.Request) {
 	// Simple liveness check - just return OK
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status":    "alive",
 		"timestamp": time.Now().Format(time.RFC3339),
 	})
@@ -554,7 +554,7 @@ func (h *HealthHandler) HandleReadiness(w http.ResponseWriter, r *http.Request) 
 	if health.Status == HealthStatusUnhealthy {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"status":    "not_ready",
 			"reason":    "unhealthy",
 			"timestamp": time.Now().Format(time.RFC3339),
@@ -564,7 +564,7 @@ func (h *HealthHandler) HandleReadiness(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status":    "ready",
 		"timestamp": time.Now().Format(time.RFC3339),
 	})

@@ -51,14 +51,14 @@ var magicSignatures = []MagicSignature{
 	{MIME: "application/x-xz", Offset: 0, Magic: []byte{0xFD, '7', 'z', 'X', 'Z', 0x00}},
 
 	// Audio
-	{MIME: "audio/mpeg", Offset: 0, Magic: []byte("ID3")},          // MP3 with ID3
-	{MIME: "audio/mpeg", Offset: 0, Magic: []byte{0xFF, 0xFB}},     // MP3 frame sync
-	{MIME: "audio/mpeg", Offset: 0, Magic: []byte{0xFF, 0xFA}},     // MP3 frame sync
-	{MIME: "audio/mpeg", Offset: 0, Magic: []byte{0xFF, 0xF3}},     // MP3 frame sync
-	{MIME: "audio/mpeg", Offset: 0, Magic: []byte{0xFF, 0xF2}},     // MP3 frame sync
+	{MIME: "audio/mpeg", Offset: 0, Magic: []byte("ID3")},      // MP3 with ID3
+	{MIME: "audio/mpeg", Offset: 0, Magic: []byte{0xFF, 0xFB}}, // MP3 frame sync
+	{MIME: "audio/mpeg", Offset: 0, Magic: []byte{0xFF, 0xFA}}, // MP3 frame sync
+	{MIME: "audio/mpeg", Offset: 0, Magic: []byte{0xFF, 0xF3}}, // MP3 frame sync
+	{MIME: "audio/mpeg", Offset: 0, Magic: []byte{0xFF, 0xF2}}, // MP3 frame sync
 	{MIME: "audio/flac", Offset: 0, Magic: []byte("fLaC")},
 	{MIME: "audio/ogg", Offset: 0, Magic: []byte("OggS")},
-	{MIME: "audio/wav", Offset: 0, Magic: []byte("RIFF")},    // Check WAVE at offset 8
+	{MIME: "audio/wav", Offset: 0, Magic: []byte("RIFF")},     // Check WAVE at offset 8
 	{MIME: "audio/aac", Offset: 0, Magic: []byte{0xFF, 0xF1}}, // ADTS
 	{MIME: "audio/aac", Offset: 0, Magic: []byte{0xFF, 0xF9}}, // ADTS
 	{MIME: "audio/aac", Offset: 0, Magic: []byte("ADIF")},
@@ -84,10 +84,10 @@ var magicSignatures = []MagicSignature{
 	{MIME: "text/html", Offset: 0, Magic: []byte("<HTML")},
 
 	// Executables (for blocking)
-	{MIME: "application/x-msdownload", Offset: 0, Magic: []byte("MZ")}, // EXE/DLL
+	{MIME: "application/x-msdownload", Offset: 0, Magic: []byte("MZ")},                    // EXE/DLL
 	{MIME: "application/x-mach-binary", Offset: 0, Magic: []byte{0xCF, 0xFA, 0xED, 0xFE}}, // Mach-O 64-bit
 	{MIME: "application/x-mach-binary", Offset: 0, Magic: []byte{0xCE, 0xFA, 0xED, 0xFE}}, // Mach-O 32-bit
-	{MIME: "application/x-executable", Offset: 0, Magic: []byte{0x7F, 'E', 'L', 'F'}}, // ELF
+	{MIME: "application/x-executable", Offset: 0, Magic: []byte{0x7F, 'E', 'L', 'F'}},     // ELF
 
 	// Fonts
 	{MIME: "font/woff", Offset: 0, Magic: []byte("wOFF")},
@@ -234,12 +234,12 @@ func IsBinaryMIME(mime string) bool {
 // IsExecutableMIME returns true if the MIME type indicates an executable
 func IsExecutableMIME(mime string) bool {
 	executableMIMEs := map[string]bool{
-		"application/x-msdownload":   true,
+		"application/x-msdownload":    true,
 		"application/x-msdos-program": true,
-		"application/x-executable":   true,
-		"application/x-mach-binary":  true,
-		"application/x-sharedlib":    true,
-		"application/x-dosexec":      true,
+		"application/x-executable":    true,
+		"application/x-mach-binary":   true,
+		"application/x-sharedlib":     true,
+		"application/x-dosexec":       true,
 	}
 	return executableMIMEs[mime]
 }

@@ -39,13 +39,14 @@ import (
 //   - Consider the tradeoff between security and user experience when setting delays
 //   - Be aware that very short delays may not effectively mask timing differences
 //   - For cryptographic operations, consider using crypto/rand instead of math/rand
-func RandomDelayWithRange(min, max float64) {
+func RandomDelayWithRange(minSec, maxSec float64) {
 	// Convert min and max seconds to milliseconds
-	minMillis := min * 1000
-	maxMillis := max * 1000
+	minMillis := minSec * 1000
+	maxMillis := maxSec * 1000
 
 	// Generate a random number between min and max milliseconds
-	randomMillis := rand.Float64()*(maxMillis-minMillis) + minMillis
+	// Using math/rand is acceptable here as this is for timing jitter, not security
+	randomMillis := rand.Float64()*(maxMillis-minMillis) + minMillis //nolint:gosec // timing jitter doesn't require crypto strength
 
 	// Convert milliseconds to duration and sleep
 	time.Sleep(time.Duration(randomMillis) * time.Millisecond)

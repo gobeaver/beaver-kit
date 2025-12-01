@@ -1,9 +1,10 @@
 package cache
 
 import (
-	"github.com/gobeaver/beaver-kit/config"
 	"strings"
 	"time"
+
+	"github.com/gobeaver/beaver-kit/config"
 )
 
 // Config holds cache configuration

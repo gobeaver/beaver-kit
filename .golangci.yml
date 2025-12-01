@@ -8,7 +8,7 @@ run:
 linters:
   enable:
     # Bug Prevention & Security
-    # - errcheck       # Unchecked errors (crashes/data loss)
+    - errcheck       # Unchecked errors (crashes/data loss)
     - errorlint      # Enforce errors.Is/As instead of == comparison
     - gosec          # Security vulnerabilities
     - govet          # Suspicious constructs
@@ -17,21 +17,21 @@ linters:
     - bidichk        # Dangerous unicode characters
 
     # Style & Conventions
-    # - revive         # Style and naming conventions
-    # - gosimple       # Go idioms
-    # # - gocritic       # Comprehensive checks (mixed receivers, performance, etc.)
-    # - gofmt          # Standard formatting
-    # - goimports      # Import organization
+    - revive         # Style and naming conventions
+    - gosimple       # Go idioms
+    # - gocritic       # Comprehensive checks (mixed receivers, performance, etc.)
+    - gofmt          # Standard formatting
+    - goimports      # Import organization
 
     # Code Quality
     # - unused         # Dead code
     # - ineffassign    # Wasted assignments
     # - dupl           # Code duplication
-    # - unconvert      # Unnecessary type conversions
-    # - unparam        # Unused function parameters
-    # - nakedret       # Naked returns in long functions
-    # - nilerr         # Suspicious nil error returns
-    # - predeclared    # Shadows predeclared identifiers
+    - unconvert      # Unnecessary type conversions
+    - unparam        # Unused function parameters
+    - nakedret       # Naked returns in long functions
+    - nilerr         # Suspicious nil error returns
+    - predeclared    # Shadows predeclared identifiers
 
     # Resource Leak Detection (Critical for library code)
     - bodyclose      # HTTP response bodies must be closed
@@ -40,7 +40,7 @@ linters:
 
     # Complexity
     # - gocyclo        # Cyclomatic complexity
-    # - nestif         # Deeply nested if statements
+    # - nestif         # Deeply nested if statements/
 
     # Custom Rules
     - forbidigo      # Forbid specific function calls

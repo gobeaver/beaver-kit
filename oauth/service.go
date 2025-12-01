@@ -275,10 +275,10 @@ func (s *Service) Exchange(ctx context.Context, code, state string) (*Token, err
 		// If RetrieveAndDelete is not implemented, fallback to separate operations
 		sessionData, err = s.sessions.Retrieve(ctx, state)
 		if err != nil {
-			return nil, fmt.Errorf("%w: %v", ErrInvalidState, err)
+			return nil, fmt.Errorf("%w: %w", ErrInvalidState, err)
 		}
 		// Immediately delete to prevent replay
-		s.sessions.Delete(ctx, state)
+		_ = s.sessions.Delete(ctx, state)
 	}
 
 	// Validate session hasn't expired
@@ -310,7 +310,7 @@ func (s *Service) Exchange(ctx context.Context, code, state string) (*Token, err
 	// Cache token if enabled
 	if s.config.TokenCacheDuration > 0 {
 		cacheKey := fmt.Sprintf("token:%s:%s", s.provider.Name(), code)
-		s.tokens.Store(ctx, cacheKey, token)
+		_ = s.tokens.Store(ctx, cacheKey, token)
 	}
 
 	return token, nil
@@ -408,7 +408,7 @@ func (s *Service) ValidateState(ctx context.Context, state string) error {
 
 	sessionData, err := s.sessions.Retrieve(ctx, state)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrInvalidState, err)
+		return fmt.Errorf("%w: %w", ErrInvalidState, err)
 	}
 
 	if sessionData.IsExpired() {
@@ -469,7 +469,7 @@ func Reset() {
 //	}
 func GetService() *Service {
 	if defaultService == nil {
-		Init() // Initialize with defaults if needed
+		_ = Init() // Initialize with defaults if needed
 	}
 	return defaultService
 }

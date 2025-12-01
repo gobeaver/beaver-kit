@@ -1,6 +1,7 @@
 package filevalidator
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -202,7 +203,8 @@ func QuickResult(filename string, size int64, valid bool, err error) *Validation
 		Size:     size,
 	}
 	if err != nil {
-		if vErr, ok := err.(*ValidationError); ok {
+		var vErr *ValidationError
+		if errors.As(err, &vErr) {
 			result.Errors = append(result.Errors, *vErr)
 		} else {
 			result.Errors = append(result.Errors, ValidationError{

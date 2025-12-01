@@ -19,6 +19,7 @@ var (
 	ErrInvalidWhence = errors.New("invalid whence")
 	ErrNotSupported  = errors.New("operation not supported")
 	ErrNotAllowed    = errors.New("operation not allowed")
+	ErrInvalidSize   = errors.New("invalid file size")
 )
 
 // PathError records an error and the operation and file path that caused it

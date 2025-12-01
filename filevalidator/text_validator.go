@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io"
 	"unicode/utf8"
@@ -88,17 +89,17 @@ func (v *JSONValidator) SupportedMIMETypes() []string {
 
 // XMLValidator validates XML files
 type XMLValidator struct {
-	MaxSize    int64
-	MaxDepth   int  // Maximum nesting depth
-	AllowDTD   bool // Allow DTD declarations (can be dangerous)
+	MaxSize  int64
+	MaxDepth int  // Maximum nesting depth
+	AllowDTD bool // Allow DTD declarations (can be dangerous)
 }
 
 // DefaultXMLValidator creates an XML validator with secure defaults
 func DefaultXMLValidator() *XMLValidator {
 	return &XMLValidator{
-		MaxSize:    50 * MB,
-		MaxDepth:   100,
-		AllowDTD:   false, // DTD disabled by default (XXE protection)
+		MaxSize:  50 * MB,
+		MaxDepth: 100,
+		AllowDTD: false, // DTD disabled by default (XXE protection)
 	}
 }
 
@@ -132,7 +133,7 @@ func (v *XMLValidator) ValidateContent(reader io.Reader, size int64) error {
 
 	for {
 		token, err := decoder.Token()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
@@ -169,18 +170,18 @@ func (v *XMLValidator) SupportedMIMETypes() []string {
 // CSVValidator validates CSV files
 type CSVValidator struct {
 	MaxSize       int64
-	MaxRows       int    // Maximum number of rows (0 = unlimited)
-	MaxColumns    int    // Maximum number of columns (0 = unlimited)
-	MaxLineLength int    // Maximum length of a single line
-	Delimiter     rune   // CSV delimiter (default: comma)
-	RequireUTF8   bool   // Require valid UTF-8 encoding
+	MaxRows       int  // Maximum number of rows (0 = unlimited)
+	MaxColumns    int  // Maximum number of columns (0 = unlimited)
+	MaxLineLength int  // Maximum length of a single line
+	Delimiter     rune // CSV delimiter (default: comma)
+	RequireUTF8   bool // Require valid UTF-8 encoding
 }
 
 // DefaultCSVValidator creates a CSV validator with sensible defaults
 func DefaultCSVValidator() *CSVValidator {
 	return &CSVValidator{
 		MaxSize:       100 * MB,
-		MaxRows:       1000000,  // 1 million rows
+		MaxRows:       1000000, // 1 million rows
 		MaxColumns:    1000,
 		MaxLineLength: 1 * 1024 * 1024, // 1MB per line
 		Delimiter:     ',',

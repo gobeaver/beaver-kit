@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -80,7 +81,7 @@ func (a *Adapter) Upload(ctx context.Context, filePath string, content io.Reader
 	}
 
 	// Set metadata if provided
-	if opts.Metadata != nil && len(opts.Metadata) > 0 {
+	if len(opts.Metadata) > 0 {
 		metadata := make(map[string]string, len(opts.Metadata))
 		for k, v := range opts.Metadata {
 			metadata[k] = v
@@ -401,11 +402,15 @@ func (a *Adapter) UploadPart(ctx context.Context, uploadID string, partNumber in
 
 	// Upload the part
 
+	// Validate partNumber is within int32 range (AWS S3 supports 1-10000 parts)
+	if partNumber < 1 || partNumber > 10000 {
+		return fmt.Errorf("part number must be between 1 and 10000, got %d", partNumber)
+	}
 	_, err := a.client.UploadPart(ctx, &s3.UploadPartInput{
 		Bucket:     aws.String(a.bucket),
 		Key:        aws.String(key),
 		UploadId:   aws.String(uploadID),
-		PartNumber: aws.Int32(int32(partNumber)),
+		PartNumber: aws.Int32(int32(partNumber)), //nolint:gosec // validated above
 		Body:       bytes.NewReader(data),
 	})
 	if err != nil {

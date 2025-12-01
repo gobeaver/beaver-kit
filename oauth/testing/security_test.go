@@ -133,7 +133,7 @@ func TestCSRFProtection(t *testing.T) {
 	})
 
 	provider := mockServer.CreateMockProvider()
-	multiService.RegisterProvider("test", provider)
+	_ = multiService.RegisterProvider("test", provider)
 
 	ctx := context.Background()
 
@@ -154,8 +154,8 @@ func TestCSRFProtection(t *testing.T) {
 	}
 
 	// Exchange with correct state should work
-	_, err = multiService.Exchange(ctx, "test", code, legitimateState)
-	// This might fail because we already tried with wrong state, but that's ok for this test
+	// Note: This might fail because we already tried with wrong state, but that's ok for this test
+	_, _ = multiService.Exchange(ctx, "test", code, legitimateState)
 }
 
 // TestTokenEncryption tests token encryption/decryption
@@ -369,7 +369,7 @@ func generateVerifier(length int) string {
 
 	// Use base64url encoding to generate the verifier
 	bytes := make([]byte, (length*6)/8+1)
-	rand.Read(bytes)
+	_, _ = rand.Read(bytes)
 	verifier := base64.RawURLEncoding.EncodeToString(bytes)
 
 	if len(verifier) > length {

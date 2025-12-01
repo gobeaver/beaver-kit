@@ -120,4 +120,3 @@ func MediaOnlyConstraints() Constraints {
 	constraints.MaxFileSize = 500 * MB
 	return constraints
 }
-

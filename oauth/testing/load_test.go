@@ -234,7 +234,7 @@ func TestMemoryLeaks(t *testing.T) {
 
 				// Cache token
 				if token != nil {
-					tokenManager.CacheToken(ctx, userID, "memory", token)
+					_ = tokenManager.CacheToken(ctx, userID, "memory", token)
 				}
 
 				atomic.AddInt64(&requestCount, 1)
@@ -246,7 +246,7 @@ func TestMemoryLeaks(t *testing.T) {
 	<-stop
 
 	// Cleanup should happen automatically
-	tokenManager.CleanupExpiredTokens(ctx)
+	_ = tokenManager.CleanupExpiredTokens(ctx)
 
 	t.Logf("Memory test completed: %d requests processed", atomic.LoadInt64(&requestCount))
 }

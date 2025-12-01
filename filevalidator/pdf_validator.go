@@ -82,16 +82,18 @@ func (v *PDFValidator) validateWithSeeker(reader io.ReadSeeker, size int64) erro
 
 // validateSmallFile handles non-seekable readers for small files
 func (v *PDFValidator) validateSmallFile(reader io.Reader, size int64) error {
-	data, err := io.ReadAll(reader)
-	if err != nil {
+	// Pre-allocate buffer based on known size for efficiency
+	data := make([]byte, 0, size)
+	buf := bytes.NewBuffer(data)
+	if _, err := buf.ReadFrom(reader); err != nil {
 		return NewValidationError(ErrorTypeContent, "failed to read PDF content")
 	}
 
-	if !v.hasValidPDFHeader(data) {
+	if !v.hasValidPDFHeader(buf.Bytes()) {
 		return NewValidationError(ErrorTypeContent, "invalid PDF header")
 	}
 
-	if !v.hasValidPDFTrailer(data) {
+	if !v.hasValidPDFTrailer(buf.Bytes()) {
 		return NewValidationError(ErrorTypeContent, "invalid PDF trailer")
 	}
 

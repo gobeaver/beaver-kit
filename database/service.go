@@ -287,7 +287,7 @@ func parseURLForDriver(databaseURL string) (driver, dsn string) {
 func NewSQL(cfg Config) (*sql.DB, error) {
 	// Validation
 	if err := validateConfig(cfg); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidConfig, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidConfig, err)
 	}
 
 	var dsn string
@@ -444,11 +444,9 @@ func NewGORM(cfg Config, sqlDB *sql.DB) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	// Run auto-migrations if configured
-	if cfg.AutoMigrate && defaultGORM != nil {
-		// This would need to be implemented with a migration registry
-		// For now, users should handle migrations manually
-	}
+	// Note: Auto-migrations would need a migration registry
+	// For now, users should handle migrations manually via GORM's AutoMigrate
+	_ = cfg.AutoMigrate // Acknowledge the config field exists but is not implemented
 
 	return gormDB, nil
 }
@@ -456,7 +454,7 @@ func NewGORM(cfg Config, sqlDB *sql.DB) (*gorm.DB, error) {
 // DB returns the global SQL database instance
 func DB() *sql.DB {
 	if defaultDB == nil {
-		Init()
+		_ = Init()
 	}
 	return defaultDB
 }

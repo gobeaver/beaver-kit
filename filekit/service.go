@@ -210,7 +210,7 @@ func createDefaultOptions(cfg Config) []Option {
 // FS returns the global file system instance
 func FS() FileSystem {
 	if defaultFS == nil {
-		Init()
+		_ = Init()
 	}
 	return defaultFS
 }

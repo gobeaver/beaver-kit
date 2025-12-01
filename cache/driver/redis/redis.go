@@ -10,8 +10,8 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
-// RedisCache implements cache using Redis
-type RedisCache struct {
+// Cache implements cache using Redis
+type Cache struct {
 	client    redis.UniversalClient
 	keyPrefix string
 }
@@ -45,7 +45,7 @@ type Config struct {
 }
 
 // New creates a new Redis cache instance
-func New(cfg Config) (*RedisCache, error) {
+func New(cfg Config) (*Cache, error) {
 	// Build options
 	opts := &redis.UniversalOptions{
 		Addrs:    []string{buildAddr(cfg)},
@@ -128,14 +128,14 @@ func New(cfg Config) (*RedisCache, error) {
 		}
 	}
 
-	return &RedisCache{
+	return &Cache{
 		client:    client,
 		keyPrefix: prefix,
 	}, nil
 }
 
 // Get retrieves a value by key
-func (rc *RedisCache) Get(ctx context.Context, key string) ([]byte, error) {
+func (rc *Cache) Get(ctx context.Context, key string) ([]byte, error) {
 	fullKey := rc.keyPrefix + key
 	val, err := rc.client.Get(ctx, fullKey).Bytes()
 	if err != nil {
@@ -148,19 +148,19 @@ func (rc *RedisCache) Get(ctx context.Context, key string) ([]byte, error) {
 }
 
 // Set stores a value with optional TTL
-func (rc *RedisCache) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
+func (rc *Cache) Set(ctx context.Context, key string, value []byte, ttl time.Duration) error {
 	fullKey := rc.keyPrefix + key
 	return rc.client.Set(ctx, fullKey, value, ttl).Err()
 }
 
 // Delete removes a key
-func (rc *RedisCache) Delete(ctx context.Context, key string) error {
+func (rc *Cache) Delete(ctx context.Context, key string) error {
 	fullKey := rc.keyPrefix + key
 	return rc.client.Del(ctx, fullKey).Err()
 }
 
 // Exists checks if a key exists
-func (rc *RedisCache) Exists(ctx context.Context, key string) (bool, error) {
+func (rc *Cache) Exists(ctx context.Context, key string) (bool, error) {
 	fullKey := rc.keyPrefix + key
 	n, err := rc.client.Exists(ctx, fullKey).Result()
 	if err != nil {
@@ -170,7 +170,7 @@ func (rc *RedisCache) Exists(ctx context.Context, key string) (bool, error) {
 }
 
 // Clear removes all keys with the prefix
-func (rc *RedisCache) Clear(ctx context.Context) error {
+func (rc *Cache) Clear(ctx context.Context) error {
 	if rc.keyPrefix == "" {
 		// Without prefix, we can't safely clear
 		return errors.New("cannot clear all keys without a prefix")
@@ -205,12 +205,12 @@ func (rc *RedisCache) Clear(ctx context.Context) error {
 }
 
 // Close closes the Redis connection
-func (rc *RedisCache) Close() error {
+func (rc *Cache) Close() error {
 	return rc.client.Close()
 }
 
 // Ping checks if Redis is reachable
-func (rc *RedisCache) Ping(ctx context.Context) error {
+func (rc *Cache) Ping(ctx context.Context) error {
 	return rc.client.Ping(ctx).Err()
 }
 
@@ -226,7 +226,7 @@ func buildAddr(cfg Config) string {
 }
 
 // Stats returns cache statistics
-func (rc *RedisCache) Stats(ctx context.Context) (map[string]interface{}, error) {
+func (rc *Cache) Stats(ctx context.Context) (map[string]interface{}, error) {
 	info, err := rc.client.Info(ctx).Result()
 	if err != nil {
 		return nil, err

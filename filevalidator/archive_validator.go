@@ -97,7 +97,7 @@ func (v *ArchiveValidator) validateWithReaderAt(reader io.ReaderAt, size int64) 
 		totalUncompressedSize += file.UncompressedSize64
 
 		// Check if we've exceeded the total uncompressed size limit
-		if totalUncompressedSize > uint64(v.MaxUncompressedSize) {
+		if v.MaxUncompressedSize > 0 && totalUncompressedSize > uint64(v.MaxUncompressedSize) { //nolint:gosec // MaxUncompressedSize is validated to be positive
 			return NewValidationError(ErrorTypeContent,
 				fmt.Sprintf("archive would expand to %d bytes (max: %d bytes)",
 					totalUncompressedSize, v.MaxUncompressedSize))

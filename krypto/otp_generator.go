@@ -1,8 +1,8 @@
 package krypto
 
 import (
-	"math/rand"
-	"time"
+	"crypto/rand"
+	"math/big"
 )
 
 // GenerateOTP generates a random One-Time Password (OTP) of the specified length.
@@ -17,15 +17,17 @@ import (
 //
 //	string: The randomly generated OTP.
 func GenerateOTP(length int) string {
-	// Create a new Rand object with a cryptographically secure source
-	source := rand.NewSource(int64(time.Now().UnixNano()))
-	seededRand := rand.New(source)
-
 	// Define the character set from which the OTP will be generated
 	charset := "0123456789"
+	charsetLen := big.NewInt(int64(len(charset)))
 	otp := make([]byte, length)
 	for i := range otp {
-		otp[i] = charset[seededRand.Intn(len(charset))]
+		n, err := rand.Int(rand.Reader, charsetLen)
+		if err != nil {
+			// Fallback should never happen with crypto/rand
+			panic("crypto/rand failed: " + err.Error())
+		}
+		otp[i] = charset[n.Int64()]
 	}
 	return string(otp)
 }

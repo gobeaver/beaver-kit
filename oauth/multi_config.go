@@ -110,7 +110,7 @@ func loadProviderFromEnv(name string, opts ...config.LoadOptions) *ProviderConfi
 		clientIDKey = opts[0].Prefix + clientIDKey
 	}
 
-	clientID := os.Getenv(clientIDKey)
+	clientID := os.Getenv(clientIDKey) //nolint:forbidigo // dynamic provider config requires direct env access
 	if clientID == "" {
 		return nil
 	}
@@ -152,7 +152,7 @@ func getEnvWithPrefix(key string, opts ...config.LoadOptions) string {
 	if len(opts) > 0 && opts[0].Prefix != "" {
 		key = opts[0].Prefix + key
 	}
-	return os.Getenv(key)
+	return os.Getenv(key) //nolint:forbidigo // dynamic provider config requires direct env access
 }
 
 // InitMultiProvider initializes the global multi-provider service
@@ -202,8 +202,8 @@ func GetMultiProviderService() *MultiProviderService {
 	return globalMultiProviderService
 }
 
-// OAuthMulti returns the global multi-provider service (alias)
-func OAuthMulti() *MultiProviderService {
+// Multi returns the global multi-provider service (alias)
+func Multi() *MultiProviderService {
 	return GetMultiProviderService()
 }
 

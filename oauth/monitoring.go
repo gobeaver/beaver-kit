@@ -2,6 +2,7 @@ package oauth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -345,16 +346,16 @@ func calculateResponseTimeStats(durations []time.Duration) ResponseTime {
 
 	// Calculate basic stats
 	total := time.Duration(0)
-	min := durations[0]
-	max := durations[0]
+	minDur := durations[0]
+	maxDur := durations[0]
 
 	for _, d := range durations {
 		total += d
-		if d < min {
-			min = d
+		if d < minDur {
+			minDur = d
 		}
-		if d > max {
-			max = d
+		if d > maxDur {
+			maxDur = d
 		}
 	}
 
@@ -381,8 +382,8 @@ func calculateResponseTimeStats(durations []time.Duration) ResponseTime {
 	return ResponseTime{
 		Count:   int64(len(durations)),
 		Total:   total,
-		Min:     min,
-		Max:     max,
+		Min:     minDur,
+		Max:     maxDur,
 		Average: average,
 		P50:     p50,
 		P95:     p95,
@@ -514,11 +515,11 @@ func (s *InstrumentedService) Exchange(ctx context.Context, code, state string) 
 func getErrorType(err error) string {
 	// Classify error types
 	switch {
-	case err == ErrInvalidState:
+	case errors.Is(err, ErrInvalidState):
 		return "invalid_state"
-	case err == ErrNoRefreshToken:
+	case errors.Is(err, ErrNoRefreshToken):
 		return "no_refresh_token"
-	case err == ErrProviderNotFound:
+	case errors.Is(err, ErrProviderNotFound):
 		return "provider_not_found"
 	default:
 		return "unknown"

@@ -2,6 +2,7 @@ package dotenv
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"strings"
 	"testing"
@@ -21,16 +22,16 @@ func parseAndCompare(t *testing.T, rawEnvLine string, expectedKey string, expect
 
 func TestLoadWithNoArgsLoadsDotEnv(t *testing.T) {
 	err := Load()
-	pathError := err.(*os.PathError)
-	if pathError == nil || pathError.Op != "open" || pathError.Path != ".env" {
+	var pathError *os.PathError
+	if !errors.As(err, &pathError) || pathError.Op != "open" || pathError.Path != ".env" {
 		t.Errorf("Didn't try and open .env by default")
 	}
 }
 
 func TestOverloadWithNoArgsOverloadsDotEnv(t *testing.T) {
 	err := Overload()
-	pathError := err.(*os.PathError)
-	if pathError == nil || pathError.Op != "open" || pathError.Path != ".env" {
+	var pathError *os.PathError
+	if !errors.As(err, &pathError) || pathError.Op != "open" || pathError.Path != ".env" {
 		t.Errorf("Didn't try and open .env by default")
 	}
 }

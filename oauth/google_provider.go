@@ -116,7 +116,7 @@ func (g *GoogleProvider) Exchange(ctx context.Context, code string, pkce *PKCECh
 		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 			return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 		}
-		return nil, &OAuthError{
+		return nil, &Error{
 			Provider:    "google",
 			Code:        errResp.Error,
 			Description: errResp.ErrorDescription,
@@ -139,7 +139,7 @@ func (g *GoogleProvider) Exchange(ctx context.Context, code string, pkce *PKCECh
 	}
 
 	if tokenResp.Error != "" {
-		return nil, &OAuthError{
+		return nil, &Error{
 			Provider:    "google",
 			Code:        tokenResp.Error,
 			Description: tokenResp.ErrorDescription,
@@ -194,7 +194,7 @@ func (g *GoogleProvider) RefreshToken(ctx context.Context, refreshToken string) 
 		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 			return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 		}
-		return nil, &OAuthError{
+		return nil, &Error{
 			Provider:    "google",
 			Code:        errResp.Error,
 			Description: errResp.ErrorDescription,
@@ -216,7 +216,7 @@ func (g *GoogleProvider) RefreshToken(ctx context.Context, refreshToken string) 
 	}
 
 	if tokenResp.Error != "" {
-		return nil, &OAuthError{
+		return nil, &Error{
 			Provider:    "google",
 			Code:        tokenResp.Error,
 			Description: tokenResp.ErrorDescription,

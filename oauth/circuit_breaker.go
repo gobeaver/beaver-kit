@@ -169,7 +169,7 @@ func (cb *DefaultCircuitBreaker) callOpen(fn func() error) error {
 func (cb *DefaultCircuitBreaker) callHalfOpen(fn func() error) error {
 	// Check if we've reached max half-open requests
 	current := atomic.AddInt32(&cb.halfOpenRequests, 1)
-	if current > int32(cb.config.MaxHalfOpenRequests) {
+	if cb.config.MaxHalfOpenRequests > 0 && current > int32(cb.config.MaxHalfOpenRequests) { //nolint:gosec // MaxHalfOpenRequests is a small config value
 		atomic.AddInt32(&cb.halfOpenRequests, -1)
 		return ErrTooManyRequests
 	}

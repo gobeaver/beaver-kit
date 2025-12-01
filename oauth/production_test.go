@@ -138,7 +138,7 @@ func TestCircuitBreaker(t *testing.T) {
 		err := breaker.Call(ctx, func() error {
 			return testErr
 		})
-		if err != testErr {
+		if !errors.Is(err, testErr) {
 			t.Errorf("Expected test error, got %v", err)
 		}
 	}
@@ -151,7 +151,7 @@ func TestCircuitBreaker(t *testing.T) {
 	err := breaker.Call(ctx, func() error {
 		return nil
 	})
-	if err != oauth.ErrCircuitOpen {
+	if !errors.Is(err, oauth.ErrCircuitOpen) {
 		t.Errorf("Expected ErrCircuitOpen, got %v", err)
 	}
 
@@ -353,7 +353,7 @@ func TestHealthChecker(t *testing.T) {
 		ClientSecret: "test-secret",
 		RedirectURL:  "http://localhost/callback",
 	})
-	multiService.RegisterProvider("google", googleProvider)
+	_ = multiService.RegisterProvider("google", googleProvider)
 
 	// Create health checker
 	healthChecker := oauth.NewDefaultHealthChecker(oauth.HealthCheckerConfig{

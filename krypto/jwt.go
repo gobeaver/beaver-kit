@@ -1,9 +1,10 @@
 package krypto
 
 import (
-	"github.com/golang-jwt/jwt/v5"
 	"os"
 	"time"
+
+	"github.com/golang-jwt/jwt/v5"
 )
 
 type GenerateJwt interface {

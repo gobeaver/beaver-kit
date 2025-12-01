@@ -193,11 +193,8 @@ func (e *EncryptedSessionStore) RetrieveAndDelete(ctx context.Context, key strin
 		return nil, err
 	}
 
-	// Then delete it
-	if err := e.Delete(ctx, key); err != nil {
-		// Log error but return the session data anyway
-		// The session has been retrieved successfully
-	}
+	// Then delete it - ignore errors as session retrieval succeeded
+	_ = e.Delete(ctx, key)
 
 	return sessionData, nil
 }
@@ -303,7 +300,7 @@ func (c *CacheIntegratedTokenStore) Store(ctx context.Context, key string, token
 
 	// Then store in cache (best effort)
 	if c.cache != nil {
-		c.cache.Store(ctx, key, token)
+		_ = c.cache.Store(ctx, key, token)
 	}
 
 	return nil
@@ -326,7 +323,7 @@ func (c *CacheIntegratedTokenStore) Retrieve(ctx context.Context, key string) (*
 
 	// Update cache (best effort)
 	if c.cache != nil {
-		c.cache.Store(ctx, key, token)
+		_ = c.cache.Store(ctx, key, token)
 	}
 
 	return token, nil
@@ -336,7 +333,7 @@ func (c *CacheIntegratedTokenStore) Retrieve(ctx context.Context, key string) (*
 func (c *CacheIntegratedTokenStore) Delete(ctx context.Context, key string) error {
 	// Delete from cache first (best effort)
 	if c.cache != nil {
-		c.cache.Delete(ctx, key)
+		_ = c.cache.Delete(ctx, key)
 	}
 
 	// Delete from primary

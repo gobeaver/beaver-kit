@@ -157,7 +157,7 @@ func Init(configs ...Config) error {
 func New(cfg Config) (*Signer, error) {
 	// Validation
 	if err := validateConfig(cfg); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidConfig, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidConfig, err)
 	}
 
 	// Initialize
@@ -200,7 +200,7 @@ func Reset() {
 // Service returns the global signer instance
 func Service() *Signer {
 	if defaultInstance == nil {
-		Init() // Initialize with defaults if needed
+		_ = Init() // Initialize with defaults if needed
 	}
 	return defaultInstance
 }
@@ -251,7 +251,7 @@ func NewSignerWithOptions(options SignerOptions) *Signer {
 func (s *Signer) SignURL(rawURL string, expiry time.Duration, payload string) (string, error) {
 	parsedURL, err := url.Parse(rawURL)
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrInvalidURL, err)
+		return "", fmt.Errorf("%w: %w", ErrInvalidURL, err)
 	}
 
 	// Set default expiry if not provided
@@ -294,7 +294,7 @@ func (s *Signer) SignURLWithDefaultExpiry(rawURL string, payload string) (string
 func (s *Signer) VerifyURL(signedURL string) (bool, string, error) {
 	parsedURL, err := url.Parse(signedURL)
 	if err != nil {
-		return false, "", fmt.Errorf("%w: %v", ErrInvalidURL, err)
+		return false, "", fmt.Errorf("%w: %w", ErrInvalidURL, err)
 	}
 
 	// Extract query parameters
@@ -352,7 +352,7 @@ func (s *Signer) VerifyURL(signedURL string) (bool, string, error) {
 func (s *Signer) GetExpirationTime(signedURL string) (time.Time, error) {
 	parsedURL, err := url.Parse(signedURL)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("%w: %v", ErrInvalidURL, err)
+		return time.Time{}, fmt.Errorf("%w: %w", ErrInvalidURL, err)
 	}
 
 	// Extract expiration timestamp
@@ -389,7 +389,7 @@ func (s *Signer) generateSignature(urlString string, expires int64, payload stri
 func (s *Signer) ExtractPayload(signedURL string) (string, error) {
 	parsedURL, err := url.Parse(signedURL)
 	if err != nil {
-		return "", fmt.Errorf("%w: %v", ErrInvalidURL, err)
+		return "", fmt.Errorf("%w: %w", ErrInvalidURL, err)
 	}
 
 	encodedPayload := parsedURL.Query().Get(s.queryParams.Payload)
@@ -409,7 +409,7 @@ func (s *Signer) ExtractPayload(signedURL string) (string, error) {
 func (s *Signer) IsExpired(signedURL string) (bool, error) {
 	parsedURL, err := url.Parse(signedURL)
 	if err != nil {
-		return true, fmt.Errorf("%w: %v", ErrInvalidURL, err)
+		return true, fmt.Errorf("%w: %w", ErrInvalidURL, err)
 	}
 
 	expiresStr := parsedURL.Query().Get(s.queryParams.Expires)

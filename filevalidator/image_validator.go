@@ -2,6 +2,7 @@ package filevalidator
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	_ "image/gif"
@@ -43,7 +44,7 @@ func (v *ImageValidator) ValidateContent(reader io.Reader, size int64) error {
 	// Peek at first 1KB to check for SVG
 	header := make([]byte, 1024)
 	n, err := io.ReadFull(reader, header)
-	if err != nil && err != io.ErrUnexpectedEOF {
+	if err != nil && !errors.Is(err, io.ErrUnexpectedEOF) {
 		return NewValidationError(ErrorTypeContent, "failed to read image header")
 	}
 	header = header[:n]

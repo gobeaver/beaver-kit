@@ -8,6 +8,14 @@ import (
 	"time"
 )
 
+// contextKey is a custom type for context keys to avoid collisions
+type contextKey string
+
+// Context keys for middleware values
+const (
+	requestLogKey contextKey = "request_log"
+)
+
 // Middleware provides HTTP middleware for OAuth operations
 type Middleware struct {
 	service      *Service
@@ -219,7 +227,7 @@ func (m *Middleware) RequestLogging(next http.Handler) http.Handler {
 		}
 
 		// Add to context for later use
-		ctx := context.WithValue(r.Context(), "request_log", &logEntry)
+		ctx := context.WithValue(r.Context(), requestLogKey, &logEntry)
 		r = r.WithContext(ctx)
 
 		// Process request

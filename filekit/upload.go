@@ -83,6 +83,11 @@ func Upload(ctx context.Context, fs FileSystem, path string, r io.Reader, size i
 
 // uploadChunked uploads a file using chunked upload
 func uploadChunked(ctx context.Context, fs ChunkedUploader, path string, r io.Reader, size int64, opts *UploadOptions) error {
+	// Validate size
+	if size <= 0 {
+		return ErrInvalidSize
+	}
+
 	// Initiate upload
 	uploadID, err := fs.InitiateUpload(ctx, path)
 	if err != nil {

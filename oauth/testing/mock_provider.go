@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -227,7 +228,7 @@ func (m *MockOAuthServer) handleToken(w http.ResponseWriter, r *http.Request) {
 	if m.shouldFail("token") {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error":             "server_error",
 			"error_description": "Token server error",
 		})
@@ -250,7 +251,7 @@ func (m *MockOAuthServer) handleToken(w http.ResponseWriter, r *http.Request) {
 	default:
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "unsupported_grant_type",
 		})
 	}
@@ -267,7 +268,7 @@ func (m *MockOAuthServer) handleAuthorizationCodeGrant(w http.ResponseWriter, r 
 	if clientID != m.config.ClientID || clientSecret != m.config.ClientSecret {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "invalid_client",
 		})
 		return
@@ -280,7 +281,7 @@ func (m *MockOAuthServer) handleAuthorizationCodeGrant(w http.ResponseWriter, r 
 		m.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "invalid_grant",
 		})
 		return
@@ -291,7 +292,7 @@ func (m *MockOAuthServer) handleAuthorizationCodeGrant(w http.ResponseWriter, r 
 		m.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error":             "invalid_grant",
 			"error_description": "redirect_uri mismatch",
 		})
@@ -304,7 +305,7 @@ func (m *MockOAuthServer) handleAuthorizationCodeGrant(w http.ResponseWriter, r 
 			m.mu.Unlock()
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{
+			_ = json.NewEncoder(w).Encode(map[string]string{
 				"error":             "invalid_grant",
 				"error_description": "PKCE verification failed",
 			})
@@ -363,14 +364,14 @@ func (m *MockOAuthServer) handleAuthorizationCodeGrant(w http.ResponseWriter, r 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 func (m *MockOAuthServer) handleRefreshTokenGrant(w http.ResponseWriter, r *http.Request) {
 	if !m.config.SupportsRefresh {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "unsupported_grant_type",
 		})
 		return
@@ -384,7 +385,7 @@ func (m *MockOAuthServer) handleRefreshTokenGrant(w http.ResponseWriter, r *http
 		m.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "invalid_grant",
 		})
 		return
@@ -395,7 +396,7 @@ func (m *MockOAuthServer) handleRefreshTokenGrant(w http.ResponseWriter, r *http
 		m.mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error":             "invalid_grant",
 			"error_description": "Token has been revoked",
 		})
@@ -426,7 +427,7 @@ func (m *MockOAuthServer) handleRefreshTokenGrant(w http.ResponseWriter, r *http
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	_ = json.NewEncoder(w).Encode(response)
 }
 
 func (m *MockOAuthServer) handleUserInfo(w http.ResponseWriter, r *http.Request) {
@@ -446,7 +447,7 @@ func (m *MockOAuthServer) handleUserInfo(w http.ResponseWriter, r *http.Request)
 	if authHeader == "" || len(authHeader) < 7 || authHeader[:7] != "Bearer " {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "invalid_token",
 		})
 		return
@@ -461,7 +462,7 @@ func (m *MockOAuthServer) handleUserInfo(w http.ResponseWriter, r *http.Request)
 		m.mu.RUnlock()
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{
+		_ = json.NewEncoder(w).Encode(map[string]string{
 			"error": "invalid_token",
 		})
 		return
@@ -485,7 +486,7 @@ func (m *MockOAuthServer) handleUserInfo(w http.ResponseWriter, r *http.Request)
 	m.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(userInfo)
+	_ = json.NewEncoder(w).Encode(userInfo)
 }
 
 func (m *MockOAuthServer) handleRevoke(w http.ResponseWriter, r *http.Request) {
@@ -521,7 +522,7 @@ func (m *MockOAuthServer) handleDiscovery(w http.ResponseWriter, r *http.Request
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(discovery)
+	_ = json.NewEncoder(w).Encode(discovery)
 }
 
 // Helper methods
@@ -628,7 +629,12 @@ func (p *MockProvider) Exchange(ctx context.Context, code string, pkce *oauth.PK
 	}
 
 	// Make request to mock server
-	resp, err := client.PostForm(p.server.GetTokenURL(), formValues(data))
+	req, err := http.NewRequestWithContext(ctx, "POST", p.server.GetTokenURL(), strings.NewReader(formValues(data).Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -636,7 +642,7 @@ func (p *MockProvider) Exchange(ctx context.Context, code string, pkce *oauth.PK
 
 	if resp.StatusCode != http.StatusOK {
 		var errResp map[string]string
-		json.NewDecoder(resp.Body).Decode(&errResp)
+		_ = json.NewDecoder(resp.Body).Decode(&errResp)
 		return nil, fmt.Errorf("token exchange failed: %s", errResp["error"])
 	}
 
@@ -667,7 +673,12 @@ func (p *MockProvider) RefreshToken(ctx context.Context, refreshToken string) (*
 		"client_secret": p.config.ClientSecret,
 	}
 
-	resp, err := client.PostForm(p.server.GetTokenURL(), formValues(data))
+	req, err := http.NewRequestWithContext(ctx, "POST", p.server.GetTokenURL(), strings.NewReader(formValues(data).Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -675,7 +686,7 @@ func (p *MockProvider) RefreshToken(ctx context.Context, refreshToken string) (*
 
 	if resp.StatusCode != http.StatusOK {
 		var errResp map[string]string
-		json.NewDecoder(resp.Body).Decode(&errResp)
+		_ = json.NewDecoder(resp.Body).Decode(&errResp)
 		return nil, fmt.Errorf("token refresh failed: %s", errResp["error"])
 	}
 
@@ -727,7 +738,12 @@ func (p *MockProvider) RevokeToken(ctx context.Context, token string) error {
 		"token": token,
 	}
 
-	resp, err := client.PostForm(p.server.GetRevokeURL(), formValues(data))
+	req, err := http.NewRequestWithContext(ctx, "POST", p.server.GetRevokeURL(), strings.NewReader(formValues(data).Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

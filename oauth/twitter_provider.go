@@ -139,7 +139,7 @@ func (t *TwitterProvider) Exchange(ctx context.Context, code string, pkce *PKCEC
 		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 			return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 		}
-		return nil, &OAuthError{
+		return nil, &Error{
 			Provider:    "twitter",
 			Code:        errResp.Error,
 			Description: errResp.ErrorDescription,
@@ -161,7 +161,7 @@ func (t *TwitterProvider) Exchange(ctx context.Context, code string, pkce *PKCEC
 	}
 
 	if tokenResp.Error != "" {
-		return nil, &OAuthError{
+		return nil, &Error{
 			Provider:    "twitter",
 			Code:        tokenResp.Error,
 			Description: tokenResp.ErrorDescription,
@@ -219,7 +219,7 @@ func (t *TwitterProvider) RefreshToken(ctx context.Context, refreshToken string)
 		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 			return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 		}
-		return nil, &OAuthError{
+		return nil, &Error{
 			Provider:    "twitter",
 			Code:        errResp.Error,
 			Description: errResp.ErrorDescription,
@@ -240,7 +240,7 @@ func (t *TwitterProvider) RefreshToken(ctx context.Context, refreshToken string)
 	}
 
 	if tokenResp.Error != "" {
-		return nil, &OAuthError{
+		return nil, &Error{
 			Provider:    "twitter",
 			Code:        tokenResp.Error,
 			Description: tokenResp.ErrorDescription,

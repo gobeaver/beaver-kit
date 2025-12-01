@@ -114,7 +114,7 @@ func (g *GitHubProvider) Exchange(ctx context.Context, code string, pkce *PKCECh
 		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 			return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 		}
-		return nil, &OAuthError{
+		return nil, &Error{
 			Provider:    "github",
 			Code:        errResp.Error,
 			Description: errResp.ErrorDescription,
@@ -134,7 +134,7 @@ func (g *GitHubProvider) Exchange(ctx context.Context, code string, pkce *PKCECh
 	}
 
 	if tokenResp.Error != "" {
-		return nil, &OAuthError{
+		return nil, &Error{
 			Provider:    "github",
 			Code:        tokenResp.Error,
 			Description: tokenResp.ErrorDescription,

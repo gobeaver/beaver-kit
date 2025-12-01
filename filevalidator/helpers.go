@@ -2,6 +2,7 @@ package filevalidator
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -146,7 +147,7 @@ func DetectContentTypeFromFile(filePath string) (string, error) {
 	// Read the first 512 bytes to detect content type
 	buffer := make([]byte, 512)
 	_, err = file.Read(buffer)
-	if err != nil && err != io.EOF {
+	if err != nil && !errors.Is(err, io.EOF) {
 		return "", err
 	}
 

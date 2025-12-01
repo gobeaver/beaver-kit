@@ -1,6 +1,7 @@
 package filevalidator
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -36,13 +37,14 @@ func NewValidationError(errType ValidationErrorType, message string) *Validation
 
 // IsValidationError checks if an error is a ValidationError
 func IsValidationError(err error) bool {
-	_, ok := err.(*ValidationError)
-	return ok
+	var validationErr *ValidationError
+	return errors.As(err, &validationErr)
 }
 
 // IsErrorOfType checks if an error is a ValidationError of the specified type
 func IsErrorOfType(err error, errType ValidationErrorType) bool {
-	if validationErr, ok := err.(*ValidationError); ok {
+	var validationErr *ValidationError
+	if errors.As(err, &validationErr) {
 		return validationErr.Type == errType
 	}
 	return false
@@ -50,7 +52,8 @@ func IsErrorOfType(err error, errType ValidationErrorType) bool {
 
 // GetErrorType returns the type of a ValidationError, or empty string if not a ValidationError
 func GetErrorType(err error) ValidationErrorType {
-	if validationErr, ok := err.(*ValidationError); ok {
+	var validationErr *ValidationError
+	if errors.As(err, &validationErr) {
 		return validationErr.Type
 	}
 	return ""
@@ -58,7 +61,8 @@ func GetErrorType(err error) ValidationErrorType {
 
 // GetErrorMessage returns the message of a ValidationError, or empty string if not a ValidationError
 func GetErrorMessage(err error) string {
-	if validationErr, ok := err.(*ValidationError); ok {
+	var validationErr *ValidationError
+	if errors.As(err, &validationErr) {
 		return validationErr.Message
 	}
 	return ""

@@ -3,6 +3,7 @@ package filevalidator
 import (
 	"archive/tar"
 	"compress/gzip"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -118,7 +119,8 @@ func (v *TarValidator) validateTar(reader io.Reader, compressedSize int64, isGzi
 		}
 
 		// Skip content - we only validate headers
-		if _, err := io.Copy(io.Discard, tarReader); err != nil {
+		// Note: Decompression bomb protection is handled by MaxUncompressedSize and MaxCompressionRatio checks above
+		if _, err := io.Copy(io.Discard, tarReader); err != nil { //nolint:gosec // decompression bomb mitigated by size/ratio checks
 			return NewValidationError(ErrorTypeContent, fmt.Sprintf("failed to read entry: %v", err))
 		}
 	}
@@ -198,7 +200,7 @@ func (v *GzipValidator) ValidateContent(reader io.Reader, size int64) error {
 			}
 		}
 
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {

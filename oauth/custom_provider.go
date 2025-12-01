@@ -124,7 +124,7 @@ func (c *CustomProvider) Exchange(ctx context.Context, code string, pkce *PKCECh
 		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 			return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 		}
-		return nil, &OAuthError{
+		return nil, &Error{
 			Provider:    c.name,
 			Code:        errResp.Error,
 			Description: errResp.ErrorDescription,
@@ -196,7 +196,7 @@ func (c *CustomProvider) RefreshToken(ctx context.Context, refreshToken string) 
 		if err := json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
 			return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 		}
-		return nil, &OAuthError{
+		return nil, &Error{
 			Provider:    c.name,
 			Code:        errResp.Error,
 			Description: errResp.ErrorDescription,

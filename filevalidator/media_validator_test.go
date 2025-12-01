@@ -18,7 +18,7 @@ func TestMP4Validator_ValidateContent(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "valid mp4 with moov",
+			name:    "valid mp4 with moov",
 			data:    []byte{0x00, 0x00, 0x00, 0x10, 'm', 'o', 'o', 'v', 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
 			wantErr: false,
 		},
@@ -125,8 +125,8 @@ func TestWAVValidator_ValidateContent(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "valid wav RIFF/WAVE",
-			data: []byte{'R', 'I', 'F', 'F', 0x00, 0x00, 0x00, 0x00, 'W', 'A', 'V', 'E'},
+			name:    "valid wav RIFF/WAVE",
+			data:    []byte{'R', 'I', 'F', 'F', 0x00, 0x00, 0x00, 0x00, 'W', 'A', 'V', 'E'},
 			wantErr: false,
 		},
 		{

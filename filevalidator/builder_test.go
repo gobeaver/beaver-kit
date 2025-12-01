@@ -27,8 +27,8 @@ func TestBuilder_Basic(t *testing.T) {
 
 func TestBuilder_Chaining(t *testing.T) {
 	validator := NewBuilder().
-		MaxSize(5 * MB).
-		MinSize(1 * KB).
+		MaxSize(5*MB).
+		MinSize(1*KB).
 		Accept("image/png", "image/jpeg").
 		Extensions(".png", ".jpg").
 		BlockExtensions(".exe").
@@ -275,7 +275,7 @@ func TestPreset_Strict(t *testing.T) {
 func TestPreset_Customization(t *testing.T) {
 	// Presets can be customized further
 	v := ForImages().
-		MaxSize(5 * MB). // Override default 10MB
+		MaxSize(5*MB).              // Override default 10MB
 		Extensions(".png", ".jpg"). // Override default extensions
 		Build()
 

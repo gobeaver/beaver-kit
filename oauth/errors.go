@@ -56,8 +56,8 @@ var (
 	ErrTemporarilyUnavailable = errors.New("service temporarily unavailable")
 )
 
-// OAuthError represents a detailed OAuth error
-type OAuthError struct {
+// Error represents a detailed OAuth error
+type Error struct {
 	Code        string // OAuth error code (e.g., "invalid_request")
 	Description string // Human-readable error description
 	URI         string // Optional URI with error details
@@ -66,7 +66,7 @@ type OAuthError struct {
 }
 
 // Error implements the error interface
-func (e *OAuthError) Error() string {
+func (e *Error) Error() string {
 	if e.Description != "" {
 		return fmt.Sprintf("oauth error [%s]: %s (%s)", e.Provider, e.Description, e.Code)
 	}
@@ -77,38 +77,38 @@ func (e *OAuthError) Error() string {
 }
 
 // Unwrap returns the underlying error
-func (e *OAuthError) Unwrap() error {
+func (e *Error) Unwrap() error {
 	return e.Err
 }
 
 // Is checks if the error matches a target error
-func (e *OAuthError) Is(target error) bool {
+func (e *Error) Is(target error) bool {
 	if e.Err != nil {
 		return errors.Is(e.Err, target)
 	}
 	return false
 }
 
-// NewOAuthError creates a new OAuth error
-func NewOAuthError(provider, code, description string) *OAuthError {
-	return &OAuthError{
+// NewError creates a new OAuth error
+func NewError(provider, code, description string) *Error {
+	return &Error{
 		Provider:    provider,
 		Code:        code,
 		Description: description,
 	}
 }
 
-// WrapOAuthError wraps an error with OAuth context
-func WrapOAuthError(provider string, err error) *OAuthError {
-	return &OAuthError{
+// WrapError wraps an error with OAuth context
+func WrapError(provider string, err error) *Error {
+	return &Error{
 		Provider: provider,
 		Err:      err,
 	}
 }
 
-// ParseOAuthError parses OAuth error from response
-func ParseOAuthError(provider string, code, description, uri string) *OAuthError {
-	oauthErr := &OAuthError{
+// ParseError parses OAuth error from response
+func ParseError(provider string, code, description, uri string) *Error {
+	oauthErr := &Error{
 		Provider:    provider,
 		Code:        code,
 		Description: description,
@@ -148,7 +148,7 @@ func IsRetryable(err error) bool {
 	}
 
 	// Check OAuth error
-	var oauthErr *OAuthError
+	var oauthErr *Error
 	if errors.As(err, &oauthErr) {
 		return oauthErr.Code == "temporarily_unavailable" ||
 			oauthErr.Code == "server_error"

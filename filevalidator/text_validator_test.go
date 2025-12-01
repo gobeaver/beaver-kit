@@ -8,11 +8,11 @@ import (
 
 func TestJSONValidator_ValidateContent(t *testing.T) {
 	tests := []struct {
-		name    string
-		json    string
+		name     string
+		json     string
 		maxDepth int
-		wantErr bool
-		errMsg  string
+		wantErr  bool
+		errMsg   string
 	}{
 		{
 			name:    "valid simple json",
@@ -207,10 +207,10 @@ func TestCSVValidator_ValidateContent(t *testing.T) {
 
 func TestPlainTextValidator_ValidateContent(t *testing.T) {
 	tests := []struct {
-		name       string
-		data       []byte
+		name        string
+		data        []byte
 		requireUTF8 bool
-		wantErr    bool
+		wantErr     bool
 	}{
 		{
 			name:        "valid utf8",

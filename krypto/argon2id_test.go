@@ -1,8 +1,9 @@
 package krypto_test
 
 import (
-	"github.com/gobeaver/beaver-kit/krypto"
 	"testing"
+
+	"github.com/gobeaver/beaver-kit/krypto"
 )
 
 func TestArgon2idHashPassword(t *testing.T) {

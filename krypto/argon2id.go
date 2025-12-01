@@ -6,8 +6,9 @@ import (
 	_ "embed"
 	"encoding/base64"
 	"fmt"
-	"golang.org/x/crypto/argon2"
 	"strings"
+
+	"golang.org/x/crypto/argon2"
 )
 
 const (
@@ -83,6 +84,10 @@ func Argon2idVerifyPassword(password, encodedHash string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to parse parallelism parameter: %w", err)
 	}
+	// Validate parallelism fits in uint8 (argon2 API requirement)
+	if p > 255 {
+		return false, fmt.Errorf("parallelism parameter too large: %d (max 255)", p)
+	}
 
 	// Decode the salt
 	salt, err := base64.StdEncoding.DecodeString(parts[3])
@@ -97,7 +102,7 @@ func Argon2idVerifyPassword(password, encodedHash string) (bool, error) {
 	}
 
 	// Compute hash of the password with the same parameters
-	computedHash := argon2.IDKey([]byte(password), salt, i, m, uint8(p), uint32(len(decodedHash)))
+	computedHash := argon2.IDKey([]byte(password), salt, i, m, uint8(p), uint32(len(decodedHash))) //nolint:gosec // p validated above
 
 	// Constant-time comparison to prevent timing attacks
 	return subtle.ConstantTimeCompare(decodedHash, computedHash) == 1, nil

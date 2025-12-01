@@ -49,7 +49,7 @@ func TestTarValidator_ValidateContent(t *testing.T) {
 			errMsg:  "dangerous path",
 		},
 		{
-			name: "symlinks blocked by default",
+			name:      "symlinks blocked by default",
 			validator: DefaultTarValidator(),
 			makeTar: func() []byte {
 				return createTarWithSymlink("link", "/etc/passwd")
@@ -164,7 +164,7 @@ func TestGzipValidator_ValidateContent(t *testing.T) {
 			makeGzip: func() []byte {
 				var buf bytes.Buffer
 				w := gzip.NewWriter(&buf)
-				w.Write([]byte("hello world"))
+				_, _ = w.Write([]byte("hello world"))
 				w.Close()
 				return buf.Bytes()
 			},
@@ -211,8 +211,8 @@ func createTar(entries []tarEntry) []byte {
 			Mode: 0644,
 			Size: int64(len(e.content)),
 		}
-		tw.WriteHeader(hdr)
-		tw.Write([]byte(e.content))
+		_ = tw.WriteHeader(hdr)
+		_, _ = tw.Write([]byte(e.content))
 	}
 
 	tw.Close()
@@ -229,7 +229,7 @@ func createTarWithSymlink(name, target string) []byte {
 		Typeflag: tar.TypeSymlink,
 		Mode:     0777,
 	}
-	tw.WriteHeader(hdr)
+	_ = tw.WriteHeader(hdr)
 
 	tw.Close()
 	return buf.Bytes()
@@ -246,8 +246,8 @@ func createTarGz(entries []tarEntry) []byte {
 			Mode: 0644,
 			Size: int64(len(e.content)),
 		}
-		tw.WriteHeader(hdr)
-		tw.Write([]byte(e.content))
+		_ = tw.WriteHeader(hdr)
+		_, _ = tw.Write([]byte(e.content))
 	}
 
 	tw.Close()

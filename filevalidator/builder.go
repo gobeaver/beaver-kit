@@ -38,9 +38,9 @@ func (b *Builder) MinSize(size int64) *Builder {
 }
 
 // SizeRange sets both minimum and maximum file size
-func (b *Builder) SizeRange(min, max int64) *Builder {
-	b.constraints.MinFileSize = min
-	b.constraints.MaxFileSize = max
+func (b *Builder) SizeRange(minSize, maxSize int64) *Builder {
+	b.constraints.MinFileSize = minSize
+	b.constraints.MaxFileSize = maxSize
 	return b
 }
 

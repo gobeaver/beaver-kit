@@ -564,4 +564,3 @@ func (v *AACValidator) SupportedMIMETypes() []string {
 		"audio/x-aac",
 	}
 }
-

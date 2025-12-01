@@ -1,8 +1,8 @@
 package filevalidator
 
 import (
-	"bytes"
 	"context"
+	"errors"
 	"mime/multipart"
 	"regexp"
 	"strings"
@@ -44,8 +44,8 @@ func TestNewDefault(t *testing.T) {
 func TestFluentBuilder(t *testing.T) {
 	regex := regexp.MustCompile(`^[a-zA-Z0-9_\.]+$`)
 	validator := NewBuilder().
-		MaxSize(20 * MB).
-		MinSize(2 * KB).
+		MaxSize(20*MB).
+		MinSize(2*KB).
 		Accept("image/jpeg", "image/png").
 		Extensions(".jpg", ".png").
 		BlockExtensions(".exe", ".php").
@@ -317,7 +317,7 @@ func TestContextCancellation(t *testing.T) {
 	err := validator.ValidateWithContext(ctx, mockFile)
 
 	// Check if the error is from context cancellation
-	if err != context.Canceled {
+	if !errors.Is(err, context.Canceled) {
 		t.Errorf("Expected context.Canceled error, got %v", err)
 	}
 }
@@ -542,160 +542,4 @@ func createMockFile(filename string, contentType string, size int64) *multipart.
 		Header:   map[string][]string{"Content-Type": {contentType}},
 		Size:     size,
 	}
-}
-
-// Mock implementation of io.ReadCloser for testing
-type mockFile struct {
-	*bytes.Reader
-	closed bool
-}
-
-func (m *mockFile) Close() error {
-	m.closed = true
-	return nil
-}
-
-func newMockFile(content []byte) *mockFile {
-	return &mockFile{
-		Reader: bytes.NewReader(content),
-		closed: false,
-	}
-}
-
-// getExtensionForMimeType returns an appropriate file extension for a given MIME type
-func getExtensionForMimeType(mimeType string) string {
-	switch mimeType {
-	case "image/jpeg":
-		return ".jpg"
-	case "image/png":
-		return ".png"
-	case "image/gif":
-		return ".gif"
-	case "application/pdf":
-		return ".pdf"
-	case "application/msword":
-		return ".doc"
-	case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-		return ".docx"
-	case "text/plain":
-		return ".txt"
-	case "audio/mpeg":
-		return ".mp3"
-	case "video/mp4":
-		return ".mp4"
-	default:
-		return ".bin"
-	}
-}
-
-// getMockContentForMimeType returns mock content that will be detected as the specified MIME type
-func getMockContentForMimeType(mimeType string) []byte {
-	switch mimeType {
-	case "image/jpeg":
-		// JPEG magic bytes
-		return []byte{0xFF, 0xD8, 0xFF}
-	case "image/png":
-		// PNG magic bytes
-		return []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
-	case "image/gif":
-		// GIF magic bytes
-		return []byte{0x47, 0x49, 0x46, 0x38, 0x39, 0x61}
-	case "application/pdf":
-		// PDF magic bytes
-		return []byte{0x25, 0x50, 0x44, 0x46}
-	case "application/msword":
-		// DOC magic bytes (OLE header) - filling to 512 bytes for proper detection
-		header := []byte{0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1}
-		content := make([]byte, 512)
-		copy(content, header)
-		return content
-	case "text/plain":
-		// Plain text - needs enough content for detection
-		content := make([]byte, 512)
-		copy(content, []byte("This is plain text content"))
-		return content
-	case "audio/mpeg":
-		// MP3 magic bytes (ID3) - filling to 512 bytes
-		header := []byte{0x49, 0x44, 0x33}
-		content := make([]byte, 512)
-		copy(content, header)
-		return content
-	case "video/mp4":
-		// MP4 magic bytes - ftyp box
-		header := []byte{0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6F, 0x6D}
-		content := make([]byte, 512)
-		copy(content, header)
-		return content
-	default:
-		// Default binary content
-		return make([]byte, 512)
-	}
-}
-
-// createMockFileWithContent creates a mock file with actual content bytes for MIME detection
-func createMockFileWithContent(filename string, mimeType string, size int64) *multipart.FileHeader {
-	// Create content that will be detected as the correct MIME type
-	var content []byte
-	switch mimeType {
-	case "image/jpeg":
-		// JPEG magic bytes
-		content = []byte{0xFF, 0xD8, 0xFF}
-	case "image/png":
-		// PNG magic bytes
-		content = []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}
-	case "image/gif":
-		// GIF magic bytes
-		content = []byte{0x47, 0x49, 0x46, 0x38, 0x39, 0x61}
-	case "application/pdf":
-		// PDF magic bytes
-		content = []byte{0x25, 0x50, 0x44, 0x46}
-	default:
-		// Default binary content
-		content = make([]byte, 512)
-	}
-
-	// Create a temporary buffer with the content
-	buffer := &bytes.Buffer{}
-	buffer.Write(content)
-
-	// Fill to requested size
-	remaining := int(size) - len(content)
-	if remaining > 0 {
-		buffer.Write(make([]byte, remaining))
-	}
-
-	// Create the FileHeader
-	header := &multipart.FileHeader{
-		Filename: filename,
-		Header:   map[string][]string{"Content-Type": {mimeType}},
-		Size:     size,
-	}
-
-	// Mock the Open method to return a reader with our content
-	header.Header["__test_content"] = []string{string(buffer.Bytes())}
-
-	return header
-}
-
-// MockableFileHeader is a mock FileHeader that can be used for testing
-type MockableFileHeader struct {
-	*multipart.FileHeader
-	content []byte
-}
-
-func (m *MockableFileHeader) Open() (multipart.File, error) {
-	reader := bytes.NewReader(m.content)
-	return &mockFile{Reader: reader}, nil
-}
-
-// createMockFileHeaderWithContent creates a proper mock FileHeader for testing
-func createMockFileHeaderWithContent(filename, mimeType string, content []byte) *multipart.FileHeader {
-	header := &multipart.FileHeader{
-		Filename: filename,
-		Header:   map[string][]string{"Content-Type": {mimeType}},
-		Size:     int64(len(content)),
-	}
-
-	// We'll use reflection to mock the Open method
-	return header
 }

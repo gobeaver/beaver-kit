@@ -223,7 +223,7 @@ func TestGoogleCaptchaValidate(t *testing.T) {
 		}
 
 		// Parse form data
-		r.ParseForm()
+		_ = r.ParseForm()
 		secret := r.FormValue("secret")
 		token := r.FormValue("response")
 
@@ -255,7 +255,7 @@ func TestGoogleCaptchaValidate(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -312,7 +312,7 @@ func TestHCaptchaValidate(t *testing.T) {
 	// Create test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Parse form data
-		r.ParseForm()
+		_ = r.ParseForm()
 		token := r.FormValue("response")
 
 		// Return different responses based on token
@@ -331,7 +331,7 @@ func TestHCaptchaValidate(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -374,7 +374,7 @@ func TestTurnstileValidate(t *testing.T) {
 
 		// Parse JSON body
 		var req map[string]string
-		json.NewDecoder(r.Body).Decode(&req)
+		_ = json.NewDecoder(r.Body).Decode(&req)
 
 		token := req["response"]
 
@@ -394,7 +394,7 @@ func TestTurnstileValidate(t *testing.T) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer server.Close()
 
@@ -430,7 +430,7 @@ func TestTurnstileValidate(t *testing.T) {
 func TestGenerateHTML(t *testing.T) {
 	tests := []struct {
 		name     string
-		service  CaptchaService
+		service  Service
 		contains string
 	}{
 		{

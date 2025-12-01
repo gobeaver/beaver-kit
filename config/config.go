@@ -2,12 +2,13 @@ package config
 
 import (
 	"fmt"
-	"github.com/gobeaver/beaver-kit/config/dotenv"
 	"os"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gobeaver/beaver-kit/config/dotenv"
 )
 
 // LoadOptions defines options for loading configuration from environment variables.
@@ -53,7 +54,7 @@ func Load(cfg interface{}, opts ...LoadOptions) error {
 		options = opts[0]
 	}
 	// Silently try to load .env file, ignore if not found
-	dotenv.Load()
+	_ = dotenv.Load()
 
 	v := reflect.ValueOf(cfg).Elem()
 	t := v.Type()

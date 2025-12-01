@@ -213,7 +213,7 @@ func TestAppleProvider_ParseIDToken(t *testing.T) {
 	}
 
 	if userInfo == nil {
-		t.Error("GetUserInfoFromIDToken() should return non-nil user info")
+		t.Fatal("GetUserInfoFromIDToken() should return non-nil user info")
 	}
 
 	if userInfo.Provider != "apple" {

@@ -3,10 +3,10 @@ package krypto
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"github.com/google/uuid"
-	rand2 "math/rand"
+	"math/big"
 	"strings"
-	"time"
+
+	"github.com/google/uuid"
 )
 
 // GenerateSecureToken generates a secure token of the specified length.
@@ -44,8 +44,8 @@ func RetryGenerateSecureToken(length int, retries int) (string, error) {
 }
 
 // GenerateRandomString generates a random string of the specified length.
-// It utilizes a pseudo-random number generator seeded with the current time
-// to ensure randomness in the generated string.
+// It utilizes a cryptographically secure random number generator
+// to ensure randomness and security in the generated string.
 //
 // Parameters:
 //
@@ -57,14 +57,17 @@ func RetryGenerateSecureToken(length int, retries int) (string, error) {
 func GenerateRandomString(length int) string {
 	// Define the character set from which the random string will be generated
 	charset := "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	charsetLen := big.NewInt(int64(len(charset)))
 
-	// Seed the random number generator with the current time
-	rand2.Seed(time.Now().UnixNano())
-
-	// Generate the random string
+	// Generate the random string using crypto/rand
 	randomString := make([]byte, length)
 	for i := range randomString {
-		randomString[i] = charset[rand2.Intn(len(charset))]
+		n, err := rand.Int(rand.Reader, charsetLen)
+		if err != nil {
+			// Fallback should never happen with crypto/rand
+			panic("crypto/rand failed: " + err.Error())
+		}
+		randomString[i] = charset[n.Int64()]
 	}
 
 	return string(randomString)

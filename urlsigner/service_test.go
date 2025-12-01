@@ -1,6 +1,7 @@
 package urlsigner
 
 import (
+	"errors"
 	"net/url"
 	"os"
 	"strconv"
@@ -164,7 +165,7 @@ func TestExpiredURL(t *testing.T) {
 
 	// Verify the signed URL
 	valid, _, err := signer.VerifyURL(signedURL)
-	if err != ErrExpired {
+	if !errors.Is(err, ErrExpired) {
 		t.Errorf("Expected ErrExpired error for expired URL, got %v", err)
 	}
 	if valid {

@@ -43,9 +43,9 @@ func TestOfficeValidator_ValidateContent(t *testing.T) {
 			validator: DefaultOfficeValidator(),
 			makeZip: func() []byte {
 				return createOfficeZip(map[string]string{
-					"[Content_Types].xml":    `<?xml version="1.0"?>`,
-					"_rels/.rels":            `<?xml version="1.0"?>`,
-					"ppt/presentation.xml":   `<presentation/>`,
+					"[Content_Types].xml":  `<?xml version="1.0"?>`,
+					"_rels/.rels":          `<?xml version="1.0"?>`,
+					"ppt/presentation.xml": `<presentation/>`,
 				})
 			},
 			wantErr: false,
@@ -180,7 +180,7 @@ func createOfficeZip(files map[string]string) []byte {
 
 	for name, content := range files {
 		f, _ := w.Create(name)
-		f.Write([]byte(content))
+		_, _ = f.Write([]byte(content))
 	}
 
 	w.Close()

@@ -307,11 +307,9 @@ func (tm *AdvancedTokenManager) RevokeToken(ctx context.Context, userID, provide
 	}
 
 	// Revoke with provider if service is configured
+	// Ignore revocation errors - some providers don't support it and we still want to remove from cache
 	if tm.providerService != nil {
-		if err := tm.providerService.RevokeToken(ctx, provider, token.AccessToken); err != nil {
-			// Log error but continue to remove from cache
-			// Some providers may not support revocation
-		}
+		_ = tm.providerService.RevokeToken(ctx, provider, token.AccessToken)
 	}
 
 	// Remove from cache
@@ -407,7 +405,7 @@ func (tm *AdvancedTokenManager) CleanupExpiredTokens(ctx context.Context) error 
 
 	// Delete expired tokens
 	for _, key := range toDelete {
-		tm.store.Delete(ctx, key)
+		_ = tm.store.Delete(ctx, key)
 		delete(tm.tokenMetadata, key)
 	}
 
@@ -508,7 +506,7 @@ func (tm *AdvancedTokenManager) startBackgroundTasks() {
 			select {
 			case <-ticker.C:
 				ctx := context.Background()
-				tm.RefreshExpiredTokens(ctx)
+				_ = tm.RefreshExpiredTokens(ctx)
 			case <-tm.stopCh:
 				return
 			}
@@ -526,7 +524,7 @@ func (tm *AdvancedTokenManager) startBackgroundTasks() {
 			select {
 			case <-ticker.C:
 				ctx := context.Background()
-				tm.CleanupExpiredTokens(ctx)
+				_ = tm.CleanupExpiredTokens(ctx)
 			case <-tm.stopCh:
 				return
 			}
