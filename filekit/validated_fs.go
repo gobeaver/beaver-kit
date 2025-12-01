@@ -3,6 +3,7 @@ package filekit
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"path/filepath"
 
@@ -39,25 +40,93 @@ func (v *ValidatedFileSystem) Upload(ctx context.Context, path string, content i
 
 	// If we have a validator, perform validation
 	if validator != nil {
-		// We need to buffer the content to validate it
-		// This is necessary because we need to read the content for validation
-		// but also pass it to the underlying filesystem
-		data, err := io.ReadAll(content)
-		if err != nil {
-			return err
-		}
+		// Optimization: If the reader is an io.Seeker (like os.File), use it directly!
+		// filevalidator handles seeking automatically.
+		if seeker, ok := content.(io.ReadSeeker); ok {
+			// We need to know the size for validation
+			size, err := getStreamSize(seeker)
+			if err != nil {
+				return err
+			}
 
-		// Use ValidateReader instead of ValidateWithContext
-		if err := validator.ValidateReader(bytes.NewReader(data), filepath.Base(path), int64(len(data))); err != nil {
-			return err
-		}
+			// Validate using the seeker
+			if err := validator.ValidateReader(content, filepath.Base(path), size); err != nil {
+				return err
+			}
 
-		// Create a new reader from the buffered data
-		content = bytes.NewReader(data)
+			// Reset seeker to start for upload
+			if _, err := seeker.Seek(0, io.SeekStart); err != nil {
+				return err
+			}
+		} else {
+			// For non-seekable streams (like HTTP body), we have to be careful.
+			// We can't validate the *entire* content (like Zip structure) without buffering it all.
+			// But we CAN validate MIME type and size efficiently.
+
+			// 1. Read the header for MIME detection (512 bytes)
+			header := make([]byte, 512)
+			n, err := io.ReadFull(content, header)
+			if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+				return err
+			}
+			header = header[:n]
+
+			// 2. Perform "Best Effort" validation using the header
+			if err := validator.ValidateBytes(header, filepath.Base(path)); err != nil {
+				return err
+			}
+
+			// 3. Reconstruct the reader for Upload
+			// We stitch the header back with the rest of the stream
+			content = io.MultiReader(bytes.NewReader(header), content)
+
+			// 4. Enforce MaxFileSize for streams
+			// Since we can't know the size upfront, we wrap the reader to error if it exceeds the limit.
+			constraints := validator.GetConstraints()
+			if constraints.MaxFileSize > 0 {
+				content = &SizeLimitReader{
+					R:     content,
+					Limit: constraints.MaxFileSize,
+				}
+			}
+		}
 	}
 
 	// Pass through to the underlying filesystem
 	return v.fs.Upload(ctx, path, content, options...)
+}
+
+// SizeLimitReader restricts the number of bytes read and returns an error if the limit is exceeded.
+type SizeLimitReader struct {
+	R     io.Reader
+	Limit int64
+	N     int64
+}
+
+func (l *SizeLimitReader) Read(p []byte) (n int, err error) {
+	n, err = l.R.Read(p)
+	l.N += int64(n)
+	if l.N > l.Limit {
+		return n, fmt.Errorf("file size exceeds limit of %d bytes", l.Limit)
+	}
+	return n, err
+}
+
+// getStreamSize tries to get the size of a seekable stream
+func getStreamSize(seeker io.ReadSeeker) (int64, error) {
+	current, err := seeker.Seek(0, io.SeekCurrent)
+	if err != nil {
+		return 0, err
+	}
+	end, err := seeker.Seek(0, io.SeekEnd)
+	if err != nil {
+		return 0, err
+	}
+	_, err = seeker.Seek(current, io.SeekStart)
+	if err != nil {
+		return 0, err
+	}
+	return end - current, nil
 }
 
 // Download implements FileSystem

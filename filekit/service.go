@@ -80,11 +80,6 @@ func New(cfg Config) (FileSystem, error) {
 		return nil, fmt.Errorf("failed to create driver: %w", err)
 	}
 
-	// Wrap with validator if needed
-	if validator := createValidator(cfg); validator != nil {
-		fs = NewValidatedFileSystem(fs, validator)
-	}
-
 	// Wrap with encryption if enabled
 	if cfg.EncryptionEnabled && cfg.EncryptionKey != "" {
 		// Decode the key from base64
@@ -96,6 +91,11 @@ func New(cfg Config) (FileSystem, error) {
 			return nil, fmt.Errorf("encryption key must be 32 bytes (got %d bytes)", len(key))
 		}
 		fs = NewEncryptedFS(fs, key)
+	}
+
+	// Wrap with validator if needed
+	if validator := createValidator(cfg); validator != nil {
+		fs = NewValidatedFileSystem(fs, validator)
 	}
 
 	// Apply default options if configured

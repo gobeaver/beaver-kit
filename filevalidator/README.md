@@ -328,10 +328,12 @@ func uploadHandler(w http.ResponseWriter, r *http.Request) {
 
 | Operation | Time | Memory |
 |-----------|------|--------|
-| Create default registry | 4.6µs | 10KB |
-| Validator lookup | 38ns | 0 allocs |
-| Image validation (header) | ~50µs | ~2KB |
-| ZIP validation (central dir) | ~100µs | ~2KB |
+| Create default registry | ~7.7µs | ~10KB |
+| Validator lookup | ~45ns | 0 allocs |
+| Image validation (header) | ~1.6µs | ~7KB |
+| MIME detection (reader) | ~108ns | 512B |
+| MIME detection (bytes) | ~11ns | 0 allocs |
+| Small file validation | ~233ns | 48B |
 
 Large files (500MB+) use the same ~2KB memory - only headers are read.
 

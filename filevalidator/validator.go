@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
-	"net/http"
 	"path/filepath"
 	"strings"
 )
@@ -101,8 +100,8 @@ func (v *FileValidator) ValidateWithContext(ctx context.Context, file *multipart
 		// Continue validation
 	}
 
-	// Detect MIME type
-	mimeType, err := detectMIMEType(f)
+	// Detect MIME type using enhanced magic bytes detection
+	mimeType, err := DetectMIME(f)
 	if err != nil {
 		return err
 	}
@@ -180,7 +179,7 @@ func (v *FileValidator) ValidateReader(reader io.Reader, filename string, size i
 			return NewValidationError(ErrorTypeMIME, "failed to get current position in reader")
 		}
 
-		mimeType, err := detectMIMEType(reader)
+		mimeType, err := DetectMIME(reader)
 		if err != nil {
 			return err
 		}
@@ -357,24 +356,4 @@ func (v *FileValidator) isAcceptedExtension(ext string) bool {
 // expandedAcceptedTypes expands all MediaTypeGroup wildcards in AcceptedTypes
 func (v *FileValidator) expandedAcceptedTypes() []string {
 	return ExpandAcceptedTypes(v.constraints.AcceptedTypes)
-}
-
-// detectMIMEType detects the MIME type of a file from an io.Reader
-func detectMIMEType(reader io.Reader) (string, error) {
-	// Read the first 512 bytes to detect the content type
-	buffer := make([]byte, 512)
-	n, err := reader.Read(buffer)
-	if err != nil && err != io.EOF {
-		return "", NewValidationError(ErrorTypeMIME, "failed to read file for MIME type detection")
-	}
-
-	// Detect content type from the bytes read
-	contentType := http.DetectContentType(buffer[:n])
-
-	// Truncate the MIME type if there are extra parameters (like charset)
-	if idx := strings.Index(contentType, ";"); idx > 0 {
-		contentType = contentType[:idx]
-	}
-
-	return contentType, nil
 }
