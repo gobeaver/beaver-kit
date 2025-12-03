@@ -34,7 +34,7 @@ type testLocalFS struct {
 	basePath string
 }
 
-func (fs *testLocalFS) Upload(ctx context.Context, path string, reader io.Reader, options ...Option) error {
+func (fs *testLocalFS) Write(ctx context.Context, path string, reader io.Reader, options ...Option) error {
 	fullPath := filepath.Join(fs.basePath, path)
 	dir := filepath.Dir(fullPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -49,18 +49,38 @@ func (fs *testLocalFS) Upload(ctx context.Context, path string, reader io.Reader
 	return os.WriteFile(fullPath, data, 0644)
 }
 
-func (fs *testLocalFS) Download(ctx context.Context, path string) (io.ReadCloser, error) {
+func (fs *testLocalFS) Read(ctx context.Context, path string) (io.ReadCloser, error) {
 	fullPath := filepath.Join(fs.basePath, path)
 	return os.Open(fullPath)
 }
 
-func (fs *testLocalFS) Exists(ctx context.Context, path string) (bool, error) {
+func (fs *testLocalFS) ReadAll(ctx context.Context, path string) ([]byte, error) {
 	fullPath := filepath.Join(fs.basePath, path)
-	_, err := os.Stat(fullPath)
+	return os.ReadFile(fullPath)
+}
+
+func (fs *testLocalFS) FileExists(ctx context.Context, path string) (bool, error) {
+	fullPath := filepath.Join(fs.basePath, path)
+	stat, err := os.Stat(fullPath)
 	if os.IsNotExist(err) {
 		return false, nil
 	}
-	return err == nil, err
+	if err != nil {
+		return false, err
+	}
+	return !stat.IsDir(), nil
+}
+
+func (fs *testLocalFS) DirExists(ctx context.Context, path string) (bool, error) {
+	fullPath := filepath.Join(fs.basePath, path)
+	stat, err := os.Stat(fullPath)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return stat.IsDir(), nil
 }
 
 func (fs *testLocalFS) Delete(ctx context.Context, path string) error {
@@ -68,14 +88,14 @@ func (fs *testLocalFS) Delete(ctx context.Context, path string) error {
 	return os.Remove(fullPath)
 }
 
-func (fs *testLocalFS) FileInfo(ctx context.Context, path string) (*File, error) {
+func (fs *testLocalFS) Stat(ctx context.Context, path string) (*FileInfo, error) {
 	fullPath := filepath.Join(fs.basePath, path)
 	stat, err := os.Stat(fullPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return &File{
+	return &FileInfo{
 		Path:    path,
 		Size:    stat.Size(),
 		ModTime: stat.ModTime(),
@@ -83,30 +103,51 @@ func (fs *testLocalFS) FileInfo(ctx context.Context, path string) (*File, error)
 	}, nil
 }
 
-func (fs *testLocalFS) List(ctx context.Context, prefix string) ([]File, error) {
-	var files []File
-	root := filepath.Join(fs.basePath, prefix)
+func (fs *testLocalFS) ListContents(ctx context.Context, path string, recursive bool) ([]FileInfo, error) {
+	var files []FileInfo
+	root := filepath.Join(fs.basePath, path)
 
-	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if !info.IsDir() {
-			relPath, err := filepath.Rel(fs.basePath, path)
+	if recursive {
+		err := filepath.Walk(root, func(p string, info os.FileInfo, err error) error {
 			if err != nil {
 				return err
 			}
-			files = append(files, File{
-				Path:    relPath,
-				Size:    info.Size(),
-				ModTime: info.ModTime(),
-				IsDir:   info.IsDir(),
-			})
-		}
-		return nil
-	})
+			if !info.IsDir() {
+				relPath, err := filepath.Rel(fs.basePath, p)
+				if err != nil {
+					return err
+				}
+				files = append(files, FileInfo{
+					Path:    relPath,
+					Size:    info.Size(),
+					ModTime: info.ModTime(),
+					IsDir:   info.IsDir(),
+				})
+			}
+			return nil
+		})
+		return files, err
+	}
 
-	return files, err
+	// Non-recursive: only immediate children
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		return files, err
+	}
+	for _, entry := range entries {
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		relPath := filepath.Join(path, entry.Name())
+		files = append(files, FileInfo{
+			Path:    relPath,
+			Size:    info.Size(),
+			ModTime: info.ModTime(),
+			IsDir:   info.IsDir(),
+		})
+	}
+	return files, nil
 }
 
 func (fs *testLocalFS) CreateDir(ctx context.Context, path string) error {
@@ -125,7 +166,7 @@ type testS3FS struct {
 	files  map[string]string
 }
 
-func (fs *testS3FS) Upload(ctx context.Context, path string, reader io.Reader, options ...Option) error {
+func (fs *testS3FS) Write(ctx context.Context, path string, reader io.Reader, options ...Option) error {
 	if fs.files == nil {
 		fs.files = make(map[string]string)
 	}
@@ -137,7 +178,7 @@ func (fs *testS3FS) Upload(ctx context.Context, path string, reader io.Reader, o
 	return nil
 }
 
-func (fs *testS3FS) Download(ctx context.Context, path string) (io.ReadCloser, error) {
+func (fs *testS3FS) Read(ctx context.Context, path string) (io.ReadCloser, error) {
 	if fs.files == nil {
 		return nil, os.ErrNotExist
 	}
@@ -148,12 +189,28 @@ func (fs *testS3FS) Download(ctx context.Context, path string) (io.ReadCloser, e
 	return io.NopCloser(strings.NewReader(content)), nil
 }
 
-func (fs *testS3FS) Exists(ctx context.Context, path string) (bool, error) {
+func (fs *testS3FS) ReadAll(ctx context.Context, path string) ([]byte, error) {
+	if fs.files == nil {
+		return nil, os.ErrNotExist
+	}
+	content, exists := fs.files[path]
+	if !exists {
+		return nil, os.ErrNotExist
+	}
+	return []byte(content), nil
+}
+
+func (fs *testS3FS) FileExists(ctx context.Context, path string) (bool, error) {
 	if fs.files == nil {
 		return false, nil
 	}
 	_, exists := fs.files[path]
 	return exists, nil
+}
+
+func (fs *testS3FS) DirExists(ctx context.Context, path string) (bool, error) {
+	// S3 doesn't have real directories
+	return false, nil
 }
 
 func (fs *testS3FS) Delete(ctx context.Context, path string) error {
@@ -164,7 +221,7 @@ func (fs *testS3FS) Delete(ctx context.Context, path string) error {
 	return nil
 }
 
-func (fs *testS3FS) FileInfo(ctx context.Context, path string) (*File, error) {
+func (fs *testS3FS) Stat(ctx context.Context, path string) (*FileInfo, error) {
 	if fs.files == nil {
 		return nil, os.ErrNotExist
 	}
@@ -172,21 +229,21 @@ func (fs *testS3FS) FileInfo(ctx context.Context, path string) (*File, error) {
 	if !exists {
 		return nil, os.ErrNotExist
 	}
-	return &File{
+	return &FileInfo{
 		Path: path,
 		Size: int64(len(content)),
 	}, nil
 }
 
-func (fs *testS3FS) List(ctx context.Context, prefix string) ([]File, error) {
-	var files []File
+func (fs *testS3FS) ListContents(ctx context.Context, path string, recursive bool) ([]FileInfo, error) {
+	var files []FileInfo
 	if fs.files == nil {
 		return files, nil
 	}
-	for path, content := range fs.files {
-		if strings.HasPrefix(path, prefix) {
-			files = append(files, File{
-				Path: path,
+	for filePath, content := range fs.files {
+		if strings.HasPrefix(filePath, path) {
+			files = append(files, FileInfo{
+				Path: filePath,
 				Size: int64(len(content)),
 			})
 		}

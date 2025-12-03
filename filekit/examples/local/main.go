@@ -47,23 +47,23 @@ func basicExample(fs filekit.FileSystem) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Upload a file
+	// Write a file
 	content := strings.NewReader("Hello, World! This is a test file.")
-	err := fs.Upload(ctx, "test.txt", content, filekit.WithContentType("text/plain"))
+	err := fs.Write(ctx, "test.txt", content, filekit.WithContentType("text/plain"))
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println("File uploaded successfully")
 
 	// Check if the file exists
-	exists, err := fs.Exists(ctx, "test.txt")
+	exists, err := fs.FileExists(ctx, "test.txt")
 	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("File exists: %v\n", exists)
 
-	// Download the file
-	reader, err := fs.Download(ctx, "test.txt")
+	// Read the file
+	reader, err := fs.Read(ctx, "test.txt")
 	if err != nil {
 		panic(err)
 	}
@@ -84,7 +84,7 @@ func basicExample(fs filekit.FileSystem) {
 	fmt.Println("File deleted successfully")
 
 	// Verify it's gone
-	exists, err = fs.Exists(ctx, "test.txt")
+	exists, err = fs.FileExists(ctx, "test.txt")
 	if err != nil {
 		panic(err)
 	}
@@ -103,16 +103,16 @@ func directoryExample(fs filekit.FileSystem) {
 	}
 	fmt.Println("Directory created successfully")
 
-	// Upload a file to the directory
+	// Write a file to the directory
 	content := strings.NewReader("Image data would go here")
-	err = fs.Upload(ctx, "images/photo.jpg", content, filekit.WithContentType("image/jpeg"))
+	err = fs.Write(ctx, "images/photo.jpg", content, filekit.WithContentType("image/jpeg"))
 	if err != nil {
 		panic(err)
 	}
 	fmt.Println("File uploaded to directory successfully")
 
 	// List directory contents
-	files, err := fs.List(ctx, "images")
+	files, err := fs.ListContents(ctx, "images", false)
 	if err != nil {
 		panic(err)
 	}
@@ -134,14 +134,14 @@ func metadataExample(fs filekit.FileSystem) {
 
 	ctx := context.Background()
 
-	// Upload a file with metadata
+	// Write a file with metadata
 	content := strings.NewReader("File with metadata")
 	metadata := map[string]string{
 		"owner":      "John Doe",
 		"department": "Engineering",
 		"project":    "File System Demo",
 	}
-	err := fs.Upload(ctx, "metadata.txt", content,
+	err := fs.Write(ctx, "metadata.txt", content,
 		filekit.WithContentType("text/plain"),
 		filekit.WithMetadata(metadata),
 	)
@@ -151,7 +151,7 @@ func metadataExample(fs filekit.FileSystem) {
 	fmt.Println("File uploaded with metadata successfully")
 
 	// Get file info
-	fileInfo, err := fs.FileInfo(ctx, "metadata.txt")
+	fileInfo, err := fs.Stat(ctx, "metadata.txt")
 	if err != nil {
 		panic(err)
 	}
@@ -191,7 +191,7 @@ func validationExample(fs filekit.FileSystem) {
 
 	// Create a valid file
 	validContent := strings.NewReader("This is a valid text file")
-	err := validatedFS.Upload(ctx, "valid.txt", validContent, filekit.WithContentType("text/plain"))
+	err := validatedFS.Write(ctx, "valid.txt", validContent, filekit.WithContentType("text/plain"))
 	if err != nil {
 		fmt.Printf("Upload error: %v\n", err)
 	} else {
@@ -200,7 +200,7 @@ func validationExample(fs filekit.FileSystem) {
 
 	// Try to create an invalid file (wrong extension)
 	invalidContent := strings.NewReader("This file has the wrong extension")
-	err = validatedFS.Upload(ctx, "invalid.png", invalidContent, filekit.WithContentType("text/plain"))
+	err = validatedFS.Write(ctx, "invalid.png", invalidContent, filekit.WithContentType("text/plain"))
 	if err != nil {
 		fmt.Printf("Validation error as expected: %v\n", err)
 	} else {
@@ -211,7 +211,7 @@ func validationExample(fs filekit.FileSystem) {
 
 	// Try to upload a file that's too large
 	largeContent := strings.NewReader(strings.Repeat("x", 2*1024*1024)) // 2MB
-	err = validatedFS.Upload(ctx, "large.txt", largeContent, filekit.WithContentType("text/plain"))
+	err = validatedFS.Write(ctx, "large.txt", largeContent, filekit.WithContentType("text/plain"))
 	if err != nil {
 		fmt.Printf("Size validation error as expected: %v\n", err)
 	} else {

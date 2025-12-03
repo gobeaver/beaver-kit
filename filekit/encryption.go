@@ -29,8 +29,8 @@ func NewEncryptedFS(fs FileSystem, key []byte) *EncryptedFS {
 	}
 }
 
-// Upload encrypts the content before uploading
-func (e *EncryptedFS) Upload(ctx context.Context, path string, content io.Reader, options ...Option) error {
+// Write encrypts the content before writing
+func (e *EncryptedFS) Write(ctx context.Context, path string, content io.Reader, options ...Option) error {
 	// Create a pipe for streaming
 	pr, pw := io.Pipe()
 
@@ -94,14 +94,14 @@ func (e *EncryptedFS) Upload(ctx context.Context, path string, content io.Reader
 		}
 	}()
 
-	// Upload the encrypted data
-	return e.fs.Upload(ctx, path, pr, options...)
+	// Write the encrypted data
+	return e.fs.Write(ctx, path, pr, options...)
 }
 
-// Download decrypts the content after downloading
-func (e *EncryptedFS) Download(ctx context.Context, path string) (io.ReadCloser, error) {
-	// Download the encrypted content
-	encryptedContent, err := e.fs.Download(ctx, path)
+// Read decrypts the content after reading
+func (e *EncryptedFS) Read(ctx context.Context, path string) (io.ReadCloser, error) {
+	// Read the encrypted content
+	encryptedContent, err := e.fs.Read(ctx, path)
 	if err != nil {
 		return nil, err
 	}
@@ -191,24 +191,42 @@ func (e *EncryptedFS) Download(ctx context.Context, path string) (io.ReadCloser,
 	return pr, nil
 }
 
+// ReadAll reads and decrypts all bytes from a file
+func (e *EncryptedFS) ReadAll(ctx context.Context, path string) ([]byte, error) {
+	// Read the file
+	rc, err := e.Read(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	defer rc.Close()
+
+	// Read all bytes
+	return io.ReadAll(rc)
+}
+
 // Delete delegates to the underlying filesystem
 func (e *EncryptedFS) Delete(ctx context.Context, path string) error {
 	return e.fs.Delete(ctx, path)
 }
 
-// Exists delegates to the underlying filesystem
-func (e *EncryptedFS) Exists(ctx context.Context, path string) (bool, error) {
-	return e.fs.Exists(ctx, path)
+// FileExists delegates to the underlying filesystem
+func (e *EncryptedFS) FileExists(ctx context.Context, path string) (bool, error) {
+	return e.fs.FileExists(ctx, path)
 }
 
-// FileInfo delegates to the underlying filesystem
-func (e *EncryptedFS) FileInfo(ctx context.Context, path string) (*File, error) {
-	return e.fs.FileInfo(ctx, path)
+// DirExists delegates to the underlying filesystem
+func (e *EncryptedFS) DirExists(ctx context.Context, path string) (bool, error) {
+	return e.fs.DirExists(ctx, path)
 }
 
-// List delegates to the underlying filesystem
-func (e *EncryptedFS) List(ctx context.Context, prefix string) ([]File, error) {
-	return e.fs.List(ctx, prefix)
+// Stat delegates to the underlying filesystem
+func (e *EncryptedFS) Stat(ctx context.Context, path string) (*FileInfo, error) {
+	return e.fs.Stat(ctx, path)
+}
+
+// ListContents delegates to the underlying filesystem
+func (e *EncryptedFS) ListContents(ctx context.Context, path string, recursive bool) ([]FileInfo, error) {
+	return e.fs.ListContents(ctx, path, recursive)
 }
 
 // CreateDir delegates to the underlying filesystem
@@ -234,6 +252,13 @@ func (e *EncryptedFS) UploadFile(ctx context.Context, path, localPath string, op
 	}
 	defer file.Close()
 
-	// Upload the file
-	return e.Upload(ctx, path, file, options...)
+	// Write the file
+	return e.Write(ctx, path, file, options...)
 }
+
+// Verify interface compliance at compile time
+var (
+	_ FileSystem = (*EncryptedFS)(nil)
+	_ FileReader = (*EncryptedFS)(nil)
+	_ FileWriter = (*EncryptedFS)(nil)
+)

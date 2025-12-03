@@ -24,31 +24,31 @@ func TestServiceWithMock(t *testing.T) {
 	ctx := context.Background()
 	content := "test content"
 
-	err = fs.Upload(ctx, "test.txt", strings.NewReader(content))
+	err = fs.Write(ctx, "test.txt", strings.NewReader(content))
 	if err != nil {
-		t.Errorf("Upload failed: %v", err)
+		t.Errorf("Write failed: %v", err)
 	}
 
-	exists, err := fs.Exists(ctx, "test.txt")
+	exists, err := fs.FileExists(ctx, "test.txt")
 	if err != nil {
-		t.Errorf("Exists failed: %v", err)
+		t.Errorf("FileExists failed: %v", err)
 	}
 	if !exists {
-		t.Error("File should exist after upload")
+		t.Error("File should exist after write")
 	}
 
-	reader, err := fs.Download(ctx, "test.txt")
+	reader, err := fs.Read(ctx, "test.txt")
 	if err != nil {
-		t.Errorf("Download failed: %v", err)
+		t.Errorf("Read failed: %v", err)
 	}
 	defer reader.Close()
 
 	downloaded, err := io.ReadAll(reader)
 	if err != nil {
-		t.Errorf("Failed to read downloaded content: %v", err)
+		t.Errorf("Failed to read content: %v", err)
 	}
 	if string(downloaded) != content {
-		t.Errorf("Downloaded content = %v, want %v", string(downloaded), content)
+		t.Errorf("Read content = %v, want %v", string(downloaded), content)
 	}
 }
 
@@ -68,8 +68,8 @@ func TestDefaultOptionsWithMock(t *testing.T) {
 
 	// The mock doesn't actually use options, but we're testing that the wrapper is applied
 	ctx := context.Background()
-	err = fs.Upload(ctx, "test.txt", strings.NewReader("test"))
+	err = fs.Write(ctx, "test.txt", strings.NewReader("test"))
 	if err != nil {
-		t.Errorf("Upload with default options failed: %v", err)
+		t.Errorf("Write with default options failed: %v", err)
 	}
 }

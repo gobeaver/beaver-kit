@@ -56,48 +56,48 @@ func BenchmarkFilesystem(b *testing.B) {
 
 			ctx := context.Background()
 
-			b.Run("upload", func(b *testing.B) {
+			b.Run("write", func(b *testing.B) {
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
 					reader := strings.NewReader(content)
-					err := fs.Upload(ctx, "bench.txt", reader, WithContentType("text/plain"))
+					err := fs.Write(ctx, "bench.txt", reader, WithContentType("text/plain"))
 					if err != nil {
-						b.Fatalf("Upload failed: %v", err)
+						b.Fatalf("Write failed: %v", err)
 					}
 					_ = fs.Delete(ctx, "bench.txt")
 				}
 			})
 
 			// Setup file for download benchmark
-			_ = fs.Upload(ctx, "bench.txt", strings.NewReader(content), WithContentType("text/plain"))
+			_ = fs.Write(ctx, "bench.txt", strings.NewReader(content), WithContentType("text/plain"))
 
-			b.Run("download", func(b *testing.B) {
+			b.Run("read", func(b *testing.B) {
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
-					reader, err := fs.Download(ctx, "bench.txt")
+					reader, err := fs.Read(ctx, "bench.txt")
 					if err != nil {
-						b.Fatalf("Download failed: %v", err)
+						b.Fatalf("Read failed: %v", err)
 					}
 					reader.Close()
 				}
 			})
 
-			b.Run("exists", func(b *testing.B) {
+			b.Run("fileexists", func(b *testing.B) {
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
-					_, err := fs.Exists(ctx, "bench.txt")
+					_, err := fs.FileExists(ctx, "bench.txt")
 					if err != nil {
-						b.Fatalf("Exists failed: %v", err)
+						b.Fatalf("FileExists failed: %v", err)
 					}
 				}
 			})
 
-			b.Run("fileinfo", func(b *testing.B) {
+			b.Run("stat", func(b *testing.B) {
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
-					_, err := fs.FileInfo(ctx, "bench.txt")
+					_, err := fs.Stat(ctx, "bench.txt")
 					if err != nil {
-						b.Fatalf("FileInfo failed: %v", err)
+						b.Fatalf("Stat failed: %v", err)
 					}
 				}
 			})

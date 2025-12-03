@@ -63,8 +63,8 @@ A comprehensive, modular Go framework providing production-ready components for 
 - **[urlsigner](#urlsigner-package)** - Secure URL signing for temporary access and file downloads
 
 ### File Handling
-- **[filekit](#filekit-package)** - File system abstraction with local and cloud storage support
-- **[filevalidator](#filevalidator-package)** - Comprehensive file validation with security features
+- **[filekit](#filekit-package)** - Filesystem abstraction with 7 drivers (Local, S3, GCS, Azure, SFTP, Memory, ZIP)
+- **[filevalidator](#filevalidator-package)** - File validation with 60+ formats and security features
 
 ## 🚀 Installation
 
@@ -609,15 +609,29 @@ remaining, err := signer.RemainingValidity(signedURL)
 
 ### FileKit Package
 
-Comprehensive file system abstraction supporting local and cloud storage.
+The most comprehensive filesystem abstraction library for Go - matching PHP Flysystem's driver coverage while providing unique security features no competitor offers.
 
-#### Features
+#### Supported Storage Backends
 
-- Local filesystem support
-- S3-compatible storage (AWS S3, MinIO, etc.)
-- Streaming operations for large files
-- Built-in encryption layer
-- File validation integration
+| Driver | Description | Status |
+|--------|-------------|--------|
+| `local` | Local filesystem with path traversal protection | Production Ready |
+| `s3` | Amazon S3 & S3-compatible (MinIO, DigitalOcean Spaces) | Production Ready |
+| `gcs` | Google Cloud Storage with signed URLs | Production Ready |
+| `azure` | Azure Blob Storage with SAS URL generation | Production Ready |
+| `sftp` | SFTP/SSH with password & private key auth | Production Ready |
+| `memory` | In-memory filesystem for testing & caching | Production Ready |
+| `zip` | ZIP archive as filesystem (read/write/read-write) | Production Ready |
+
+#### Key Features
+
+- **7 Production-Ready Drivers** - Local, S3, GCS, Azure, SFTP, Memory, ZIP
+- **Built-in Encryption** - AES-256-GCM transparent encryption layer
+- **File Validation** - Integration with filevalidator for security
+- **Progress Tracking** - Built-in upload progress callbacks
+- **Zip Bomb Protection** - Decompression bomb detection
+- **Chunked Uploads** - Multipart upload support for S3
+- **Pure Go** - Zero CGO dependencies
 
 #### Usage
 
@@ -626,6 +640,11 @@ import (
     "github.com/gobeaver/beaver-kit/filekit"
     "github.com/gobeaver/beaver-kit/filekit/driver/local"
     "github.com/gobeaver/beaver-kit/filekit/driver/s3"
+    "github.com/gobeaver/beaver-kit/filekit/driver/gcs"
+    "github.com/gobeaver/beaver-kit/filekit/driver/azure"
+    "github.com/gobeaver/beaver-kit/filekit/driver/sftp"
+    "github.com/gobeaver/beaver-kit/filekit/driver/memory"
+    "github.com/gobeaver/beaver-kit/filekit/driver/zip"
 )
 
 // Local filesystem
@@ -633,6 +652,21 @@ localFS, err := local.New("/var/uploads")
 
 // S3 storage
 s3FS := s3.New(s3Client, "my-bucket", s3.WithPrefix("uploads/"))
+
+// Google Cloud Storage
+gcsFS := gcs.New(gcsClient, "my-bucket", gcs.WithPrefix("uploads/"))
+
+// Azure Blob Storage
+azureFS := azure.New(azureClient, "container", accountName, accountKey)
+
+// SFTP
+sftpFS, _ := sftp.New(sftp.Config{Host: "sftp.example.com", Port: 22, Username: "user", Password: "pass"})
+
+// In-memory (testing)
+memFS := memory.New()
+
+// ZIP archive
+zipFS, _ := zip.Open("/path/to/archive.zip")
 
 // Upload files
 content := strings.NewReader("Hello, World!")
@@ -647,56 +681,59 @@ err = fs.Upload(ctx, "hello.txt", content,
 reader, err := fs.Download(ctx, "hello.txt")
 defer reader.Close()
 
-// List files
-files, err := fs.List(ctx, "documents/")
-for _, file := range files {
-    fmt.Printf("%s (%d bytes)\n", file.Name, file.Size)
-}
-
 // Encrypted storage
 encryptedFS := filekit.NewEncryptedFS(fs, encryptionKey)
 ```
 
+[Read full documentation →](filekit/README.md)
+
 ### FileValidator Package
 
-Comprehensive file validation with security features to prevent malicious uploads.
+Comprehensive file validation with 60+ format support and security features to prevent malicious uploads.
 
 #### Features
 
-- File size, MIME type, and extension validation
-- Content-based validation for security
-- Protection against zip bombs, malicious images, and dangerous PDFs
-- Streaming validation for large files
-- Detailed error types
+- **60+ Format Support** - Images, documents, archives, audio, video, fonts, and more
+- **Fluent Builder API** - Clean, chainable configuration
+- **Zip Bomb Protection** - Decompression bomb detection
+- **Content-Based Validation** - Magic byte and structure verification
+- **Streaming Validation** - Memory-efficient for large files
+- **Path Traversal Protection** - Security-focused design
 
 #### Usage
 
 ```go
 import "github.com/gobeaver/beaver-kit/filevalidator"
 
-// Create validator with constraints
+// Fluent Builder API (recommended)
+validator := filevalidator.NewBuilder().
+    MaxSize(10 * filevalidator.MB).
+    AllowImages().
+    AllowDocuments().
+    WithZipBombProtection().
+    Build()
+
+// Validate files
+result, err := validator.Validate(reader, filename)
+if !result.IsValid() {
+    for _, e := range result.Errors {
+        fmt.Printf("Error: %s\n", e.Message)
+    }
+}
+
+// Or create with constraints
 validator := filevalidator.New(filevalidator.Constraints{
     MaxFileSize:   10 * filevalidator.MB,
     AcceptedTypes: []string{"image/jpeg", "image/png", "application/pdf"},
     AllowedExts:   []string{".jpg", ".jpeg", ".png", ".pdf"},
-    ContentValidationEnabled: true,
 })
 
-// Validate uploaded files
-err := validator.Validate(fileHeader)
-if err != nil {
-    if filevalidator.IsErrorOfType(err, filevalidator.ErrorTypeSize) {
-        // Handle size error
-    }
-}
-
-// Use predefined constraints
+// Predefined constraints
 imageValidator := filevalidator.New(filevalidator.ImageOnlyConstraints())
 docValidator := filevalidator.New(filevalidator.DocumentOnlyConstraints())
-
-// Stream validation for large files
-err = filevalidator.StreamValidate(reader, filename, validator, 8192)
 ```
+
+[Read full documentation →](filevalidator/README.md)
 
 ## 🔧 Common Patterns
 

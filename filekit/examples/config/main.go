@@ -68,21 +68,21 @@ func main() {
 	// Example usage
 	ctx := context.Background()
 
-	// Upload a file
+	// Write a file
 	content := strings.NewReader("Hello, World!")
-	if err := customFS.Upload(ctx, "hello.txt", content); err != nil {
+	if err := customFS.Write(ctx, "hello.txt", content); err != nil {
 		log.Printf("Upload failed: %v", err)
 	}
 
 	// Check if file exists
-	exists, err := customFS.Exists(ctx, "hello.txt")
+	exists, err := customFS.FileExists(ctx, "hello.txt")
 	if err != nil {
 		log.Printf("Exists check failed: %v", err)
 	}
 	fmt.Printf("File exists: %v\n", exists)
 
 	// Get file info
-	info, err := customFS.FileInfo(ctx, "hello.txt")
+	info, err := customFS.Stat(ctx, "hello.txt")
 	if err != nil {
 		log.Printf("FileInfo failed: %v", err)
 	} else {
@@ -90,7 +90,7 @@ func main() {
 	}
 
 	// List files
-	files, err := customFS.List(ctx, "")
+	files, err := customFS.ListContents(ctx, "", false)
 	if err != nil {
 		log.Printf("List failed: %v", err)
 	} else {
@@ -100,7 +100,7 @@ func main() {
 	// Example with S3 (commented out unless you have S3 configured)
 	_ = s3FS // Avoid unused variable warning
 	/*
-		if err := s3FS.Upload(ctx, "test.txt", strings.NewReader("S3 test")); err != nil {
+		if err := s3FS.Write(ctx, "test.txt", strings.NewReader("S3 test")); err != nil {
 			log.Printf("S3 upload failed: %v", err)
 		}
 	*/

@@ -77,8 +77,8 @@ func Upload(ctx context.Context, fs FileSystem, path string, r io.Reader, size i
 		return uploadChunked(ctx, chunkedFS, path, r, size, opts)
 	}
 
-	// Use regular upload
-	return fs.Upload(ctx, path, r, options...)
+	// Use regular write
+	return fs.Write(ctx, path, r, options...)
 }
 
 // uploadChunked uploads a file using chunked upload

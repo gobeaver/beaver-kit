@@ -252,30 +252,38 @@ type defaultOptionsFS struct {
 	options []Option
 }
 
-func (d *defaultOptionsFS) Upload(ctx context.Context, path string, content io.Reader, options ...Option) error {
+func (d *defaultOptionsFS) Write(ctx context.Context, path string, content io.Reader, options ...Option) error {
 	// Merge default options with provided options (provided options take precedence)
 	allOptions := append(d.options, options...)
-	return d.fs.Upload(ctx, path, content, allOptions...)
+	return d.fs.Write(ctx, path, content, allOptions...)
 }
 
-func (d *defaultOptionsFS) Download(ctx context.Context, path string) (io.ReadCloser, error) {
-	return d.fs.Download(ctx, path)
+func (d *defaultOptionsFS) Read(ctx context.Context, path string) (io.ReadCloser, error) {
+	return d.fs.Read(ctx, path)
+}
+
+func (d *defaultOptionsFS) ReadAll(ctx context.Context, path string) ([]byte, error) {
+	return d.fs.ReadAll(ctx, path)
 }
 
 func (d *defaultOptionsFS) Delete(ctx context.Context, path string) error {
 	return d.fs.Delete(ctx, path)
 }
 
-func (d *defaultOptionsFS) Exists(ctx context.Context, path string) (bool, error) {
-	return d.fs.Exists(ctx, path)
+func (d *defaultOptionsFS) FileExists(ctx context.Context, path string) (bool, error) {
+	return d.fs.FileExists(ctx, path)
 }
 
-func (d *defaultOptionsFS) FileInfo(ctx context.Context, path string) (*File, error) {
-	return d.fs.FileInfo(ctx, path)
+func (d *defaultOptionsFS) DirExists(ctx context.Context, path string) (bool, error) {
+	return d.fs.DirExists(ctx, path)
 }
 
-func (d *defaultOptionsFS) List(ctx context.Context, prefix string) ([]File, error) {
-	return d.fs.List(ctx, prefix)
+func (d *defaultOptionsFS) Stat(ctx context.Context, path string) (*FileInfo, error) {
+	return d.fs.Stat(ctx, path)
+}
+
+func (d *defaultOptionsFS) ListContents(ctx context.Context, path string, recursive bool) ([]FileInfo, error) {
+	return d.fs.ListContents(ctx, path, recursive)
 }
 
 func (d *defaultOptionsFS) CreateDir(ctx context.Context, path string) error {

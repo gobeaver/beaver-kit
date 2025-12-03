@@ -24,8 +24,8 @@ func NewValidatedFileSystem(fs FileSystem, validator filevalidator.Validator) *V
 	}
 }
 
-// Upload implements FileSystem with validation
-func (v *ValidatedFileSystem) Upload(ctx context.Context, path string, content io.Reader, options ...Option) error {
+// Write implements FileSystem with validation
+func (v *ValidatedFileSystem) Write(ctx context.Context, path string, content io.Reader, options ...Option) error {
 	// Process options
 	opts := &Options{}
 	for _, option := range options {
@@ -54,7 +54,7 @@ func (v *ValidatedFileSystem) Upload(ctx context.Context, path string, content i
 				return err
 			}
 
-			// Reset seeker to start for upload
+			// Reset seeker to start for write
 			if _, err := seeker.Seek(0, io.SeekStart); err != nil {
 				return err
 			}
@@ -76,7 +76,7 @@ func (v *ValidatedFileSystem) Upload(ctx context.Context, path string, content i
 				return err
 			}
 
-			// 3. Reconstruct the reader for Upload
+			// 3. Reconstruct the reader for Write
 			// We stitch the header back with the rest of the stream
 			content = io.MultiReader(bytes.NewReader(header), content)
 
@@ -93,7 +93,7 @@ func (v *ValidatedFileSystem) Upload(ctx context.Context, path string, content i
 	}
 
 	// Pass through to the underlying filesystem
-	return v.fs.Upload(ctx, path, content, options...)
+	return v.fs.Write(ctx, path, content, options...)
 }
 
 // SizeLimitReader restricts the number of bytes read and returns an error if the limit is exceeded.
@@ -129,9 +129,14 @@ func getStreamSize(seeker io.ReadSeeker) (int64, error) {
 	return end - current, nil
 }
 
-// Download implements FileSystem
-func (v *ValidatedFileSystem) Download(ctx context.Context, path string) (io.ReadCloser, error) {
-	return v.fs.Download(ctx, path)
+// Read implements FileSystem
+func (v *ValidatedFileSystem) Read(ctx context.Context, path string) (io.ReadCloser, error) {
+	return v.fs.Read(ctx, path)
+}
+
+// ReadAll implements FileSystem
+func (v *ValidatedFileSystem) ReadAll(ctx context.Context, path string) ([]byte, error) {
+	return v.fs.ReadAll(ctx, path)
 }
 
 // Delete implements FileSystem
@@ -139,19 +144,24 @@ func (v *ValidatedFileSystem) Delete(ctx context.Context, path string) error {
 	return v.fs.Delete(ctx, path)
 }
 
-// Exists implements FileSystem
-func (v *ValidatedFileSystem) Exists(ctx context.Context, path string) (bool, error) {
-	return v.fs.Exists(ctx, path)
+// FileExists implements FileSystem
+func (v *ValidatedFileSystem) FileExists(ctx context.Context, path string) (bool, error) {
+	return v.fs.FileExists(ctx, path)
 }
 
-// FileInfo implements FileSystem
-func (v *ValidatedFileSystem) FileInfo(ctx context.Context, path string) (*File, error) {
-	return v.fs.FileInfo(ctx, path)
+// DirExists implements FileSystem
+func (v *ValidatedFileSystem) DirExists(ctx context.Context, path string) (bool, error) {
+	return v.fs.DirExists(ctx, path)
 }
 
-// List implements FileSystem
-func (v *ValidatedFileSystem) List(ctx context.Context, prefix string) ([]File, error) {
-	return v.fs.List(ctx, prefix)
+// Stat implements FileSystem
+func (v *ValidatedFileSystem) Stat(ctx context.Context, path string) (*FileInfo, error) {
+	return v.fs.Stat(ctx, path)
+}
+
+// ListContents implements FileSystem
+func (v *ValidatedFileSystem) ListContents(ctx context.Context, path string, recursive bool) ([]FileInfo, error) {
+	return v.fs.ListContents(ctx, path, recursive)
 }
 
 // CreateDir implements FileSystem

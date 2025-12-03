@@ -306,27 +306,27 @@ func TestDefaultOptionsFS(t *testing.T) {
 	// Test that default options are applied
 	ctx := context.Background()
 	content := strings.NewReader("test content")
-	err = defaultFS.Upload(ctx, "test.txt", content)
+	err = defaultFS.Write(ctx, "test.txt", content)
 	if err != nil {
-		t.Errorf("Upload with default options failed: %v", err)
+		t.Errorf("Write with default options failed: %v", err)
 	}
 
 	// Verify file exists
-	exists, err := defaultFS.Exists(ctx, "test.txt")
+	exists, err := defaultFS.FileExists(ctx, "test.txt")
 	if err != nil {
-		t.Errorf("Exists() error = %v", err)
+		t.Errorf("FileExists() error = %v", err)
 	}
 	if !exists {
-		t.Error("File should exist after upload")
+		t.Error("File should exist after write")
 	}
 
 	// Test other methods are passed through
-	info, err := defaultFS.FileInfo(ctx, "test.txt")
+	info, err := defaultFS.Stat(ctx, "test.txt")
 	if err != nil {
-		t.Errorf("FileInfo() error = %v", err)
+		t.Errorf("Stat() error = %v", err)
 	}
 	if info == nil {
-		t.Error("FileInfo() returned nil")
+		t.Error("Stat() returned nil")
 	}
 
 	// Test delete
@@ -367,18 +367,18 @@ func TestIntegration(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Test upload
+	// Test write
 	content := strings.NewReader("Hello, encrypted world!")
-	err = fs.Upload(ctx, "encrypted.txt", content, WithContentType("text/plain"))
+	err = fs.Write(ctx, "encrypted.txt", content, WithContentType("text/plain"))
 	if err != nil {
-		t.Errorf("Upload failed: %v", err)
+		t.Errorf("Write failed: %v", err)
 	}
 
-	// Test download
-	reader, err := fs.Download(ctx, "encrypted.txt")
+	// Test read
+	reader, err := fs.Read(ctx, "encrypted.txt")
 	if err != nil {
-		t.Errorf("Download failed: %v", err)
-		return // Exit early if download fails
+		t.Errorf("Read failed: %v", err)
+		return // Exit early if read fails
 	}
 	defer reader.Close()
 

@@ -167,25 +167,25 @@ func TestValidationIntegration(t *testing.T) {
 				opts = append(opts, WithContentType(tt.contentType))
 			}
 
-			err = fs.Upload(ctx, tt.filename, content, opts...)
+			err = fs.Write(ctx, tt.filename, content, opts...)
 
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Upload() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("Write() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
 			if err != nil && tt.errContains != "" && !strings.Contains(strings.ToLower(err.Error()), strings.ToLower(tt.errContains)) {
-				t.Errorf("Upload() error = %v, want error containing %v", err, tt.errContains)
+				t.Errorf("Write() error = %v, want error containing %v", err, tt.errContains)
 			}
 
-			// If upload succeeded, verify the file exists
+			// If write succeeded, verify the file exists
 			if err == nil {
-				exists, err := fs.Exists(ctx, tt.filename)
+				exists, err := fs.FileExists(ctx, tt.filename)
 				if err != nil {
-					t.Errorf("Exists() error = %v", err)
+					t.Errorf("FileExists() error = %v", err)
 				}
 				if !exists {
-					t.Error("File should exist after successful upload")
+					t.Error("File should exist after successful write")
 				}
 
 				// Clean up
@@ -223,25 +223,25 @@ func TestValidationWithEncryption(t *testing.T) {
 
 	// Test that validation happens before encryption
 
-	// 1. Try to upload a file that violates validation
+	// 1. Try to write a file that violates validation
 	largeContent := strings.Repeat("a", 2000) // Exceeds 1024 byte limit
-	err = fs.Upload(ctx, "large.txt", strings.NewReader(largeContent), WithContentType("text/plain"))
+	err = fs.Write(ctx, "large.txt", strings.NewReader(largeContent), WithContentType("text/plain"))
 	if err == nil {
 		t.Error("Expected validation error for large file")
 	}
 
-	// 2. Upload a valid file
+	// 2. Write a valid file
 	validContent := "This is valid content"
-	err = fs.Upload(ctx, "valid.txt", strings.NewReader(validContent), WithContentType("text/plain"))
+	err = fs.Write(ctx, "valid.txt", strings.NewReader(validContent), WithContentType("text/plain"))
 	if err != nil {
-		t.Errorf("Upload of valid file failed: %v", err)
+		t.Errorf("Write of valid file failed: %v", err)
 	}
 
 	// 3. Verify the content is encrypted and then properly decrypted
-	reader, err := fs.Download(ctx, "valid.txt")
+	reader, err := fs.Read(ctx, "valid.txt")
 	if err != nil {
-		t.Errorf("Download failed: %v", err)
-		return // Exit early if download fails
+		t.Errorf("Read failed: %v", err)
+		return // Exit early if read fails
 	}
 	defer reader.Close()
 

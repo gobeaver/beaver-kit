@@ -20,6 +20,27 @@ type Config struct {
 	S3SecretAccessKey string `env:"FILEKIT_S3_SECRET_ACCESS_KEY"`
 	S3ForcePathStyle  bool   `env:"FILEKIT_S3_FORCE_PATH_STYLE,default:false"`
 
+	// GCS (Google Cloud Storage) driver configuration
+	GCSBucket          string `env:"FILEKIT_GCS_BUCKET"`
+	GCSPrefix          string `env:"FILEKIT_GCS_PREFIX"`
+	GCSCredentialsFile string `env:"FILEKIT_GCS_CREDENTIALS_FILE"` // Path to service account JSON
+	GCSProjectID       string `env:"FILEKIT_GCS_PROJECT_ID"`
+
+	// Azure Blob Storage driver configuration
+	AzureAccountName   string `env:"FILEKIT_AZURE_ACCOUNT_NAME"`
+	AzureAccountKey    string `env:"FILEKIT_AZURE_ACCOUNT_KEY"`
+	AzureContainerName string `env:"FILEKIT_AZURE_CONTAINER_NAME"`
+	AzurePrefix        string `env:"FILEKIT_AZURE_PREFIX"`
+	AzureEndpoint      string `env:"FILEKIT_AZURE_ENDPOINT"` // Optional custom endpoint
+
+	// SFTP driver configuration
+	SFTPHost       string `env:"FILEKIT_SFTP_HOST"`
+	SFTPPort       int    `env:"FILEKIT_SFTP_PORT,default:22"`
+	SFTPUsername   string `env:"FILEKIT_SFTP_USERNAME"`
+	SFTPPassword   string `env:"FILEKIT_SFTP_PASSWORD"`
+	SFTPPrivateKey string `env:"FILEKIT_SFTP_PRIVATE_KEY"` // Path to private key file
+	SFTPBasePath   string `env:"FILEKIT_SFTP_BASE_PATH"`
+
 	// Default upload options
 	DefaultVisibility       string `env:"FILEKIT_DEFAULT_VISIBILITY,default:private"`
 	DefaultCacheControl     string `env:"FILEKIT_DEFAULT_CACHE_CONTROL"`

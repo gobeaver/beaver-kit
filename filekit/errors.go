@@ -20,6 +20,7 @@ var (
 	ErrNotSupported  = errors.New("operation not supported")
 	ErrNotAllowed    = errors.New("operation not allowed")
 	ErrInvalidSize   = errors.New("invalid file size")
+	ErrNoSpace       = errors.New("no space left on device")
 )
 
 // PathError records an error and the operation and file path that caused it
