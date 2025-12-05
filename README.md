@@ -613,25 +613,56 @@ The most comprehensive filesystem abstraction library for Go - matching PHP Flys
 
 #### Supported Storage Backends
 
-| Driver | Description | Status |
-|--------|-------------|--------|
-| `local` | Local filesystem with path traversal protection | Production Ready |
-| `s3` | Amazon S3 & S3-compatible (MinIO, DigitalOcean Spaces) | Production Ready |
-| `gcs` | Google Cloud Storage with signed URLs | Production Ready |
-| `azure` | Azure Blob Storage with SAS URL generation | Production Ready |
-| `sftp` | SFTP/SSH with password & private key auth | Production Ready |
-| `memory` | In-memory filesystem for testing & caching | Production Ready |
-| `zip` | ZIP archive as filesystem (read/write/read-write) | Production Ready |
+| Driver | Description | Capabilities |
+|--------|-------------|--------------|
+| `local` | Local filesystem with path traversal protection | Read, Write, Copy, Move, Watch, Checksum |
+| `s3` | Amazon S3 & S3-compatible (MinIO, DigitalOcean Spaces) | Read, Write, Copy, Pre-signed URLs, Multipart |
+| `gcs` | Google Cloud Storage with signed URLs | Read, Write, Pre-signed URLs (GET/PUT) |
+| `azure` | Azure Blob Storage with SAS URL generation | Read, Write, SAS URLs |
+| `sftp` | SFTP/SSH with password & private key auth | Read, Write, Copy, Move |
+| `memory` | In-memory filesystem for testing & caching | Read, Write, Copy, Move, Watch |
+| `zip` | ZIP archive as filesystem (read/write/read-write) | Read, Write |
 
 #### Key Features
 
 - **7 Production-Ready Drivers** - Local, S3, GCS, Azure, SFTP, Memory, ZIP
+- **Mount Manager** - Virtual path namespacing, cross-mount copy/move
+- **File Watching** - ChangeToken pattern (fsnotify for local, polling for cloud)
 - **Built-in Encryption** - AES-256-GCM transparent encryption layer
+- **Caching Layer** - Metadata caching with pluggable backends
 - **File Validation** - Integration with filevalidator for security
+- **Checksum Support** - MD5, SHA1, SHA256, SHA512, CRC32, xxHash
+- **File Selectors** - Composable filtering (Glob, Depth, And/Or/Not)
 - **Progress Tracking** - Built-in upload progress callbacks
-- **Zip Bomb Protection** - Decompression bomb detection
 - **Chunked Uploads** - Multipart upload support for S3
 - **Pure Go** - Zero CGO dependencies
+
+#### Core Interfaces
+
+```go
+// Read operations
+type FileReader interface {
+    Read(ctx context.Context, path string) (io.ReadCloser, error)
+    ReadAll(ctx context.Context, path string) ([]byte, error)
+    Stat(ctx context.Context, path string) (*FileInfo, error)
+    FileExists(ctx context.Context, path string) (bool, error)
+    ListContents(ctx context.Context, path string, recursive bool) ([]FileInfo, error)
+}
+
+// Write operations
+type FileWriter interface {
+    Write(ctx context.Context, path string, content io.Reader, opts ...Option) error
+    Delete(ctx context.Context, path string) error
+    CreateDir(ctx context.Context, path string) error
+}
+
+// Optional capabilities (check with type assertion)
+type CanCopy interface { Copy(ctx, src, dst string) error }
+type CanMove interface { Move(ctx, src, dst string) error }
+type CanChecksum interface { Checksum(ctx, path string, algo ChecksumAlgorithm) (string, error) }
+type CanSignURL interface { GenerateSignedGetURL(ctx, path string, expires time.Duration) (string, error) }
+type CanWatch interface { Watch(ctx context.Context, filter string) (ChangeToken, error) }
+```
 
 #### Usage
 
@@ -640,49 +671,52 @@ import (
     "github.com/gobeaver/beaver-kit/filekit"
     "github.com/gobeaver/beaver-kit/filekit/driver/local"
     "github.com/gobeaver/beaver-kit/filekit/driver/s3"
-    "github.com/gobeaver/beaver-kit/filekit/driver/gcs"
-    "github.com/gobeaver/beaver-kit/filekit/driver/azure"
-    "github.com/gobeaver/beaver-kit/filekit/driver/sftp"
     "github.com/gobeaver/beaver-kit/filekit/driver/memory"
-    "github.com/gobeaver/beaver-kit/filekit/driver/zip"
 )
 
-// Local filesystem
-localFS, err := local.New("/var/uploads")
-
-// S3 storage
-s3FS := s3.New(s3Client, "my-bucket", s3.WithPrefix("uploads/"))
-
-// Google Cloud Storage
-gcsFS := gcs.New(gcsClient, "my-bucket", gcs.WithPrefix("uploads/"))
-
-// Azure Blob Storage
-azureFS := azure.New(azureClient, "container", accountName, accountKey)
-
-// SFTP
-sftpFS, _ := sftp.New(sftp.Config{Host: "sftp.example.com", Port: 22, Username: "user", Password: "pass"})
-
-// In-memory (testing)
-memFS := memory.New()
-
-// ZIP archive
-zipFS, _ := zip.Open("/path/to/archive.zip")
-
-// Upload files
+// Basic usage
+localFS, _ := local.New("/var/uploads")
 content := strings.NewReader("Hello, World!")
-err = fs.Upload(ctx, "hello.txt", content,
-    filekit.WithContentType("text/plain"),
-    filekit.WithMetadata(map[string]string{
-        "uploaded_by": "user123",
-    }),
-)
+err := localFS.Write(ctx, "hello.txt", content, filekit.WithContentType("text/plain"))
 
-// Download files
-reader, err := fs.Download(ctx, "hello.txt")
+reader, err := localFS.Read(ctx, "hello.txt")
 defer reader.Close()
 
-// Encrypted storage
-encryptedFS := filekit.NewEncryptedFS(fs, encryptionKey)
+// Mount Manager - unified access to multiple backends
+mounts := filekit.NewMountManager()
+mounts.Mount("/local", localFS)
+mounts.Mount("/s3", s3FS)
+mounts.Mount("/cache", memory.New())
+
+// Transparent cross-mount operations
+mounts.Copy(ctx, "/local/file.txt", "/s3/backup/file.txt")
+
+// File Watching
+token, _ := localFS.(filekit.Watcher).Watch(ctx, "config/*.json")
+unsubscribe := token.RegisterChangeCallback(func() {
+    log.Println("Config changed!")
+})
+defer unsubscribe()
+
+// Middleware composition
+encrypted := filekit.NewEncryptedFS(localFS, encryptionKey)
+validated := filekit.NewValidatedFileSystem(encrypted, validator)
+cached := filekit.NewCachingFileSystem(validated, cache)
+
+// Checksums
+hash, _ := filekit.CalculateChecksum(reader, filekit.SHA256)
+ok, _ := filekit.VerifyChecksum(ctx, fs, "file.txt", expectedHash, filekit.SHA256)
+
+// File selection
+files, _ := filekit.ListWithSelector(ctx, fs, "/",
+    filekit.And(
+        filekit.Glob("*.jpg"),
+        filekit.FuncSelector(func(f *filekit.FileInfo) bool {
+            return f.Size < 10*1024*1024 // Under 10MB
+        }),
+    ),
+    true, // recursive
+)
 ```
 
 [Read full documentation →](filekit/README.md)
@@ -691,14 +725,33 @@ encryptedFS := filekit.NewEncryptedFS(fs, encryptionKey)
 
 Comprehensive file validation with 60+ format support and security features to prevent malicious uploads.
 
-#### Features
+#### Supported Formats
 
-- **60+ Format Support** - Images, documents, archives, audio, video, fonts, and more
+| Category | Formats | Count |
+|----------|---------|-------|
+| **Images** | JPEG, PNG, GIF, WebP, SVG, BMP, TIFF, ICO, HEIC, AVIF | 10 |
+| **Documents** | PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, TXT, CSV, RTF | 10 |
+| **Archives** | ZIP, JAR, TAR, GZIP, TAR.GZ, RAR, 7z, BZ2, XZ | 9 |
+| **Audio** | MP3, WAV, OGG, FLAC, AAC, MIDI, M4A, WebM | 8 |
+| **Video** | MP4, WebM, Matroska, AVI, MOV, QuickTime, FLV, 3GPP | 8 |
+| **Text** | JSON, XML, CSV, Plain Text, HTML | 5 |
+| **Fonts** | WOFF, WOFF2, OTF, TTF | 4 |
+
+#### Key Features
+
+- **60+ Format Support** - Images, documents, archives, audio, video, fonts
 - **Fluent Builder API** - Clean, chainable configuration
-- **Zip Bomb Protection** - Decompression bomb detection
-- **Content-Based Validation** - Magic byte and structure verification
-- **Streaming Validation** - Memory-efficient for large files
-- **Path Traversal Protection** - Security-focused design
+- **Preset Validators** - `ForImages()`, `ForDocuments()`, `ForMedia()`, `ForArchives()`, `Strict()`
+- **Content Validator Registry** - Pluggable format-specific validators
+- **Memory Efficient** - Only reads file headers (512-1024 bytes)
+
+#### Security Features
+
+- **Zip Bomb Protection** - Compression ratio limits (100:1), file count limits, nested archive limits
+- **Path Traversal Protection** - Blocks `../`, absolute paths, UNC paths
+- **XXE Protection** - DTD/ENTITY declarations blocked by default in XML
+- **Macro Protection** - Office macro-enabled formats (.docm, .xlsm) blocked by default
+- **Dangerous Character Blocking** - Customizable filename character blacklist
 
 #### Usage
 
@@ -708,29 +761,64 @@ import "github.com/gobeaver/beaver-kit/filevalidator"
 // Fluent Builder API (recommended)
 validator := filevalidator.NewBuilder().
     MaxSize(10 * filevalidator.MB).
-    AllowImages().
-    AllowDocuments().
-    WithZipBombProtection().
+    AcceptImages().
+    AcceptDocuments().
+    WithContentValidation().
     Build()
 
-// Validate files
-result, err := validator.Validate(reader, filename)
+// Preset validators for common use cases
+imageValidator := filevalidator.ForImages().Build()      // 10MB max, 8 formats
+docValidator := filevalidator.ForDocuments().Build()     // 50MB max
+mediaValidator := filevalidator.ForMedia().Build()       // 500MB max
+archiveValidator := filevalidator.ForArchives().Build()  // 1GB max, zip bomb protection
+strictValidator := filevalidator.Strict().Build()        // All security checks enabled
+
+// Validate HTTP multipart uploads
+err := validator.Validate(fileHeader)
+
+// Validate from reader (streaming)
+err := validator.ValidateReader(reader, "document.pdf", fileSize)
+
+// Validate bytes
+err := validator.ValidateBytes(content, "image.png")
+
+// Detailed results with ValidationResult
+result := validator.ValidateWithResult(fileHeader)
 if !result.IsValid() {
     for _, e := range result.Errors {
-        fmt.Printf("Error: %s\n", e.Message)
+        fmt.Printf("[%s] %s\n", e.Type, e.Message)
     }
 }
+fmt.Printf("Detected MIME: %s\n", result.DetectedMIME)
 
-// Or create with constraints
+// Custom constraints
 validator := filevalidator.New(filevalidator.Constraints{
-    MaxFileSize:   10 * filevalidator.MB,
-    AcceptedTypes: []string{"image/jpeg", "image/png", "application/pdf"},
-    AllowedExts:   []string{".jpg", ".jpeg", ".png", ".pdf"},
+    MaxFileSize:             10 * filevalidator.MB,
+    MinFileSize:             1,
+    AcceptedTypes:           []string{"image/*", "application/pdf"},
+    AllowedExts:             []string{".jpg", ".png", ".pdf"},
+    BlockedExts:             []string{".exe", ".bat", ".sh"},
+    MaxNameLength:           255,
+    StrictMIMETypeValidation: true,
+    ContentValidationEnabled: true,
 })
 
-// Predefined constraints
-imageValidator := filevalidator.New(filevalidator.ImageOnlyConstraints())
-docValidator := filevalidator.New(filevalidator.DocumentOnlyConstraints())
+// Content validator registry for deep format validation
+registry := filevalidator.DefaultRegistry() // All 20+ validators
+registry := filevalidator.MinimalRegistry() // ZIP, Image, PDF only
+```
+
+#### MIME Detection
+
+```go
+// Detect MIME from content (magic bytes)
+mime, err := filevalidator.DetectMIME(reader)
+mime, err := filevalidator.DetectMIMEFromBytes(data)
+
+// Check MIME category
+filevalidator.IsBinaryMIME(mime)      // true for binaries
+filevalidator.IsExecutableMIME(mime)  // true for exe, elf, mach-o
+filevalidator.GetMIMECategory(mime)   // "image", "document", "archive", etc.
 ```
 
 [Read full documentation →](filevalidator/README.md)

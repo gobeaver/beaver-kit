@@ -10,6 +10,11 @@
 temp/
 CLAUDE.md
 .claude/
+.gemini/
+gemini.md
+.kiro/
+kiro.md
+
 
 # Go
 *.exe
