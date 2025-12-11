@@ -2,282 +2,313 @@ package config
 
 import (
 	"os"
-	"reflect"
 	"testing"
+	"time"
 )
 
-// Test struct with various field types
 type TestConfig struct {
-	StringField  string `env:"TEST_STRING"`
-	IntField     int    `env:"TEST_INT"`
-	Int64Field   int64  `env:"TEST_INT64"`
-	BoolField    bool   `env:"TEST_BOOL"`
-	DefaultField string `env:"TEST_DEFAULT,default:defaultValue"`
-	NoTagField   string // Field without env tag
+	Host     string   `env:"HOST" envDefault:"localhost"`
+	Port     int      `env:"PORT" envDefault:"8080"`
+	Debug    bool     `env:"DEBUG"`
+	Tags     []string `env:"TAGS" envSeparator:","`
+	Required string   `env:"REQUIRED"`
 }
 
 func TestLoad(t *testing.T) {
-	tests := []struct {
-		name     string
-		envVars  map[string]string
-		expected TestConfig
-		wantErr  bool
-	}{
-		{
-			name: "all fields set from environment",
-			envVars: map[string]string{
-				"TEST_STRING": "hello",
-				"TEST_INT":    "42",
-				"TEST_INT64":  "9223372036854775807",
-				"TEST_BOOL":   "true",
-			},
-			expected: TestConfig{
-				StringField:  "hello",
-				IntField:     42,
-				Int64Field:   9223372036854775807,
-				BoolField:    true,
-				DefaultField: "defaultValue",
-			},
-		},
-		{
-			name: "default values used when env not set",
-			envVars: map[string]string{
-				"TEST_STRING": "world",
-				"TEST_INT":    "0",
-				"TEST_INT64":  "0",
-				"TEST_BOOL":   "false",
-			},
-			expected: TestConfig{
-				StringField:  "world",
-				IntField:     0,
-				Int64Field:   0,
-				BoolField:    false,
-				DefaultField: "defaultValue",
-			},
-		},
-		{
-			name: "override default value",
-			envVars: map[string]string{
-				"TEST_STRING":  "test",
-				"TEST_INT":     "123",
-				"TEST_INT64":   "456",
-				"TEST_BOOL":    "true",
-				"TEST_DEFAULT": "overridden",
-			},
-			expected: TestConfig{
-				StringField:  "test",
-				IntField:     123,
-				Int64Field:   456,
-				BoolField:    true,
-				DefaultField: "overridden",
-			},
-		},
-		{
-			name: "invalid int value",
-			envVars: map[string]string{
-				"TEST_INT": "not-a-number",
-			},
-			wantErr: true,
-		},
-		{
-			name: "invalid bool value",
-			envVars: map[string]string{
-				"TEST_BOOL": "not-a-bool",
-			},
-			wantErr: true,
-		},
-		{
-			name:    "empty environment leaves zero values",
-			envVars: map[string]string{},
-			expected: TestConfig{
-				DefaultField: "defaultValue",
-			},
-		},
+	// Clean up
+	defer func() {
+		os.Unsetenv("BEAVER_HOST")
+		os.Unsetenv("BEAVER_PORT")
+		os.Unsetenv("BEAVER_DEBUG")
+		os.Unsetenv("BEAVER_TAGS")
+	}()
+
+	os.Setenv("BEAVER_HOST", "example.com")
+	os.Setenv("BEAVER_PORT", "3000")
+	os.Setenv("BEAVER_DEBUG", "true")
+	os.Setenv("BEAVER_TAGS", "api,web,backend")
+
+	var cfg TestConfig
+	if err := Load(&cfg, WithoutDotEnv()); err != nil {
+		t.Fatalf("Load failed: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Clear all test environment variables
-			os.Unsetenv("TEST_STRING")
-			os.Unsetenv("TEST_INT")
-			os.Unsetenv("TEST_INT64")
-			os.Unsetenv("TEST_BOOL")
-			os.Unsetenv("TEST_DEFAULT")
-
-			// Set test environment variables
-			for k, v := range tt.envVars {
-				os.Setenv(k, v)
-			}
-
-			cfg := &TestConfig{}
-			err := Load(cfg, LoadOptions{Prefix: ""})
-
-			if (err != nil) != tt.wantErr {
-				t.Errorf("Load() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-
-			if !tt.wantErr {
-				if cfg.StringField != tt.expected.StringField {
-					t.Errorf("StringField = %v, want %v", cfg.StringField, tt.expected.StringField)
-				}
-				if cfg.IntField != tt.expected.IntField {
-					t.Errorf("IntField = %v, want %v", cfg.IntField, tt.expected.IntField)
-				}
-				if cfg.Int64Field != tt.expected.Int64Field {
-					t.Errorf("Int64Field = %v, want %v", cfg.Int64Field, tt.expected.Int64Field)
-				}
-				if cfg.BoolField != tt.expected.BoolField {
-					t.Errorf("BoolField = %v, want %v", cfg.BoolField, tt.expected.BoolField)
-				}
-				if cfg.DefaultField != tt.expected.DefaultField {
-					t.Errorf("DefaultField = %v, want %v", cfg.DefaultField, tt.expected.DefaultField)
-				}
-			}
-		})
+	if cfg.Host != "example.com" {
+		t.Errorf("Host = %q, want %q", cfg.Host, "example.com")
+	}
+	if cfg.Port != 3000 {
+		t.Errorf("Port = %d, want %d", cfg.Port, 3000)
+	}
+	if !cfg.Debug {
+		t.Error("Debug = false, want true")
+	}
+	if len(cfg.Tags) != 3 || cfg.Tags[0] != "api" {
+		t.Errorf("Tags = %v, want [api web backend]", cfg.Tags)
 	}
 }
 
-func TestLoadWithDebug(t *testing.T) {
-	// Test debug output
-	os.Setenv("BEAVER_CONFIG_DEBUG", "true")
-	os.Setenv("TEST_STRING", "debug-test")
-	defer os.Unsetenv("BEAVER_CONFIG_DEBUG")
-	defer os.Unsetenv("TEST_STRING")
+func TestLoadWithPrefix(t *testing.T) {
+	defer os.Unsetenv("CUSTOM_HOST")
 
-	cfg := &TestConfig{}
-	err := Load(cfg, LoadOptions{Prefix: ""})
-	if err != nil {
-		t.Errorf("Load() with debug enabled failed: %v", err)
+	os.Setenv("CUSTOM_HOST", "custom.example.com")
+
+	var cfg TestConfig
+	if err := Load(&cfg, WithPrefix("CUSTOM_"), WithoutDotEnv()); err != nil {
+		t.Fatalf("Load failed: %v", err)
 	}
 
-	if cfg.StringField != "debug-test" {
-		t.Errorf("StringField = %v, want %v", cfg.StringField, "debug-test")
+	if cfg.Host != "custom.example.com" {
+		t.Errorf("Host = %q, want %q", cfg.Host, "custom.example.com")
 	}
 }
 
-func TestSetFieldValue(t *testing.T) {
-	tests := []struct {
-		name      string
-		fieldType string
-		value     string
-		wantErr   bool
-	}{
-		{
-			name:      "valid string",
-			fieldType: "string",
-			value:     "test",
-		},
-		{
-			name:      "valid int",
-			fieldType: "int",
-			value:     "123",
-		},
-		{
-			name:      "valid int64",
-			fieldType: "int64",
-			value:     "9223372036854775807",
-		},
-		{
-			name:      "valid bool true",
-			fieldType: "bool",
-			value:     "true",
-		},
-		{
-			name:      "valid bool false",
-			fieldType: "bool",
-			value:     "false",
-		},
-		{
-			name:      "valid bool 1",
-			fieldType: "bool",
-			value:     "1",
-		},
-		{
-			name:      "valid bool 0",
-			fieldType: "bool",
-			value:     "0",
-		},
-		{
-			name:      "invalid int",
-			fieldType: "int",
-			value:     "abc",
-			wantErr:   true,
-		},
-		{
-			name:      "invalid bool",
-			fieldType: "bool",
-			value:     "yes",
-			wantErr:   true,
-		},
+func TestLoadWithNoPrefix(t *testing.T) {
+	defer os.Unsetenv("HOST")
+
+	os.Setenv("HOST", "noprefix.example.com")
+
+	var cfg TestConfig
+	if err := Load(&cfg, WithPrefix(""), WithoutDotEnv()); err != nil {
+		t.Fatalf("Load failed: %v", err)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			var cfg interface{}
-			switch tt.fieldType {
-			case "string":
-				cfg = &struct{ Field string }{}
-			case "int":
-				cfg = &struct{ Field int }{}
-			case "int64":
-				cfg = &struct{ Field int64 }{}
-			case "bool":
-				cfg = &struct{ Field bool }{}
-			}
-
-			v := reflect.ValueOf(cfg).Elem()
-			field := v.Field(0)
-
-			err := setFieldValue(field, tt.value)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("setFieldValue() error = %v, wantErr %v", err, tt.wantErr)
-			}
-		})
+	if cfg.Host != "noprefix.example.com" {
+		t.Errorf("Host = %q, want %q", cfg.Host, "noprefix.example.com")
 	}
 }
 
-func TestComplexEnvTag(t *testing.T) {
-	type ComplexConfig struct {
-		Field1 string `env:"COMPLEX_FIELD1,default:value1"`
-		Field2 string `env:"COMPLEX_FIELD2,default:value2,other:ignored"`
-		Field3 string `env:"COMPLEX_FIELD3,something,default:value3"`
+func TestLoadDefaults(t *testing.T) {
+	var cfg TestConfig
+	if err := Load(&cfg, WithoutDotEnv()); err != nil {
+		t.Fatalf("Load failed: %v", err)
 	}
 
-	cfg := &ComplexConfig{}
-	err := Load(cfg, LoadOptions{Prefix: ""})
-	if err != nil {
-		t.Errorf("Load() failed: %v", err)
+	if cfg.Host != "localhost" {
+		t.Errorf("Host = %q, want %q", cfg.Host, "localhost")
 	}
-
-	// Check that default values are properly parsed
-	if cfg.Field1 != "value1" {
-		t.Errorf("Field1 = %v, want %v", cfg.Field1, "value1")
-	}
-	if cfg.Field2 != "value2" {
-		t.Errorf("Field2 = %v, want %v", cfg.Field2, "value2")
-	}
-	if cfg.Field3 != "value3" {
-		t.Errorf("Field3 = %v, want %v", cfg.Field3, "value3")
+	if cfg.Port != 8080 {
+		t.Errorf("Port = %d, want %d", cfg.Port, 8080)
 	}
 }
 
-func TestUnsupportedFieldType(t *testing.T) {
-	type UnsupportedConfig struct {
-		FloatField float64 `env:"TEST_FLOAT"`
+func TestMustLoadPanics(t *testing.T) {
+	type RequiredConfig struct {
+		Value string `env:"MUST_EXIST,required"`
 	}
 
-	os.Setenv("TEST_FLOAT", "3.14")
-	defer os.Unsetenv("TEST_FLOAT")
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("MustLoad should panic on missing required field")
+		}
+	}()
 
-	cfg := &UnsupportedConfig{}
-	err := Load(cfg, LoadOptions{Prefix: ""})
-	if err != nil {
-		t.Errorf("Load() should not error for unsupported types, got: %v", err)
+	var cfg RequiredConfig
+	MustLoad(&cfg, WithoutDotEnv())
+}
+
+func TestLoadWithRequired(t *testing.T) {
+	type RequiredFieldsConfig struct {
+		APIKey   string `env:"API_KEY"`
+		Optional string `env:"OPTIONAL" envDefault:"default"`
 	}
 
-	// Field should remain at zero value since float64 is not supported
-	if cfg.FloatField != 0 {
-		t.Errorf("FloatField = %v, want %v", cfg.FloatField, 0)
+	// Without WithRequired, missing fields without defaults are allowed
+	var cfg1 RequiredFieldsConfig
+	if err := Load(&cfg1, WithoutDotEnv()); err != nil {
+		t.Errorf("Load without WithRequired should not fail: %v", err)
+	}
+
+	// With WithRequired, missing fields without defaults should fail
+	var cfg2 RequiredFieldsConfig
+	err := Load(&cfg2, WithRequired(), WithoutDotEnv())
+	if err == nil {
+		t.Error("Load with WithRequired should fail for missing API_KEY")
+	}
+}
+
+func TestLoadDuration(t *testing.T) {
+	type DurationConfig struct {
+		Timeout time.Duration `env:"TIMEOUT" envDefault:"30s"`
+	}
+
+	defer os.Unsetenv("BEAVER_TIMEOUT")
+
+	// Test default
+	var cfg1 DurationConfig
+	if err := Load(&cfg1, WithoutDotEnv()); err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if cfg1.Timeout != 30*time.Second {
+		t.Errorf("Timeout = %v, want 30s", cfg1.Timeout)
+	}
+
+	// Test custom value
+	os.Setenv("BEAVER_TIMEOUT", "1h30m")
+	var cfg2 DurationConfig
+	if err := Load(&cfg2, WithoutDotEnv()); err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if cfg2.Timeout != 90*time.Minute {
+		t.Errorf("Timeout = %v, want 1h30m", cfg2.Timeout)
+	}
+}
+
+func TestLoadSlices(t *testing.T) {
+	type SliceConfig struct {
+		Hosts []string `env:"HOSTS" envSeparator:","`
+		Ports []int    `env:"PORTS" envSeparator:","`
+	}
+
+	defer func() {
+		os.Unsetenv("BEAVER_HOSTS")
+		os.Unsetenv("BEAVER_PORTS")
+	}()
+
+	os.Setenv("BEAVER_HOSTS", "host1,host2,host3")
+	os.Setenv("BEAVER_PORTS", "8080,8081,8082")
+
+	var cfg SliceConfig
+	if err := Load(&cfg, WithoutDotEnv()); err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if len(cfg.Hosts) != 3 || cfg.Hosts[0] != "host1" || cfg.Hosts[2] != "host3" {
+		t.Errorf("Hosts = %v, want [host1 host2 host3]", cfg.Hosts)
+	}
+	if len(cfg.Ports) != 3 || cfg.Ports[0] != 8080 || cfg.Ports[2] != 8082 {
+		t.Errorf("Ports = %v, want [8080 8081 8082]", cfg.Ports)
+	}
+}
+
+func TestLoadMaps(t *testing.T) {
+	type MapConfig struct {
+		Metadata map[string]string `env:"METADATA"`
+	}
+
+	defer os.Unsetenv("BEAVER_METADATA")
+
+	os.Setenv("BEAVER_METADATA", "key1:val1,key2:val2")
+
+	var cfg MapConfig
+	if err := Load(&cfg, WithoutDotEnv()); err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if cfg.Metadata["key1"] != "val1" || cfg.Metadata["key2"] != "val2" {
+		t.Errorf("Metadata = %v, want map[key1:val1 key2:val2]", cfg.Metadata)
+	}
+}
+
+func TestLoadNestedStructs(t *testing.T) {
+	type DatabaseConfig struct {
+		Host string `env:"HOST" envDefault:"localhost"`
+		Port int    `env:"PORT" envDefault:"5432"`
+	}
+
+	type AppConfig struct {
+		Name     string         `env:"NAME" envDefault:"myapp"`
+		Database DatabaseConfig `envPrefix:"DB_"`
+	}
+
+	defer func() {
+		os.Unsetenv("BEAVER_NAME")
+		os.Unsetenv("BEAVER_DB_HOST")
+		os.Unsetenv("BEAVER_DB_PORT")
+	}()
+
+	os.Setenv("BEAVER_NAME", "testapp")
+	os.Setenv("BEAVER_DB_HOST", "db.example.com")
+	os.Setenv("BEAVER_DB_PORT", "3306")
+
+	var cfg AppConfig
+	if err := Load(&cfg, WithoutDotEnv()); err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if cfg.Name != "testapp" {
+		t.Errorf("Name = %q, want %q", cfg.Name, "testapp")
+	}
+	if cfg.Database.Host != "db.example.com" {
+		t.Errorf("Database.Host = %q, want %q", cfg.Database.Host, "db.example.com")
+	}
+	if cfg.Database.Port != 3306 {
+		t.Errorf("Database.Port = %d, want %d", cfg.Database.Port, 3306)
+	}
+}
+
+func TestLoadFloat(t *testing.T) {
+	type FloatConfig struct {
+		Rate float64 `env:"RATE" envDefault:"0.5"`
+	}
+
+	defer os.Unsetenv("BEAVER_RATE")
+
+	// Test default
+	var cfg1 FloatConfig
+	if err := Load(&cfg1, WithoutDotEnv()); err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if cfg1.Rate != 0.5 {
+		t.Errorf("Rate = %v, want 0.5", cfg1.Rate)
+	}
+
+	// Test custom value
+	os.Setenv("BEAVER_RATE", "3.14159")
+	var cfg2 FloatConfig
+	if err := Load(&cfg2, WithoutDotEnv()); err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if cfg2.Rate != 3.14159 {
+		t.Errorf("Rate = %v, want 3.14159", cfg2.Rate)
+	}
+}
+
+func TestLoadAllIntTypes(t *testing.T) {
+	type IntConfig struct {
+		Int8Val   int8   `env:"INT8" envDefault:"127"`
+		Int16Val  int16  `env:"INT16" envDefault:"32767"`
+		Int32Val  int32  `env:"INT32" envDefault:"2147483647"`
+		Int64Val  int64  `env:"INT64" envDefault:"9223372036854775807"`
+		Uint8Val  uint8  `env:"UINT8" envDefault:"255"`
+		Uint16Val uint16 `env:"UINT16" envDefault:"65535"`
+		Uint32Val uint32 `env:"UINT32" envDefault:"4294967295"`
+		Uint64Val uint64 `env:"UINT64" envDefault:"18446744073709551615"`
+	}
+
+	var cfg IntConfig
+	if err := Load(&cfg, WithoutDotEnv()); err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	if cfg.Int8Val != 127 {
+		t.Errorf("Int8Val = %d, want 127", cfg.Int8Val)
+	}
+	if cfg.Int64Val != 9223372036854775807 {
+		t.Errorf("Int64Val = %d, want 9223372036854775807", cfg.Int64Val)
+	}
+	if cfg.Uint8Val != 255 {
+		t.Errorf("Uint8Val = %d, want 255", cfg.Uint8Val)
+	}
+	if cfg.Uint64Val != 18446744073709551615 {
+		t.Errorf("Uint64Val = %d, want 18446744073709551615", cfg.Uint64Val)
+	}
+}
+
+func TestWithEnvFiles(t *testing.T) {
+	// This test verifies that WithEnvFiles sets the option correctly
+	// Actual file loading is tested via integration tests
+	options := Options{
+		Prefix:   DefaultPrefix,
+		EnvFiles: []string{".env"},
+	}
+
+	opt := WithEnvFiles(".env.local", ".env.production")
+	opt(&options)
+
+	if len(options.EnvFiles) != 2 {
+		t.Errorf("EnvFiles length = %d, want 2", len(options.EnvFiles))
+	}
+	if options.EnvFiles[0] != ".env.local" {
+		t.Errorf("EnvFiles[0] = %q, want %q", options.EnvFiles[0], ".env.local")
 	}
 }

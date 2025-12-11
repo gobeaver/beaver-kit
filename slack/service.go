@@ -40,7 +40,7 @@ func WithPrefix(prefix string) *Builder {
 // Init initializes the global Slack service using the builder's prefix
 func (b *Builder) Init() error {
 	cfg := &Config{}
-	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+	if err := config.Load(cfg, config.WithPrefix(b.prefix)); err != nil {
 		return err
 	}
 	return Init(*cfg)
@@ -49,7 +49,7 @@ func (b *Builder) Init() error {
 // New creates a new Slack service using the builder's prefix
 func (b *Builder) New() (*Service, error) {
 	cfg := &Config{}
-	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+	if err := config.Load(cfg, config.WithPrefix(b.prefix)); err != nil {
 		return nil, err
 	}
 	return New(*cfg)
@@ -109,7 +109,7 @@ func Init(configs ...Config) error {
 		if len(configs) > 0 {
 			cfg = &configs[0]
 		} else {
-			cfg, defaultErr = GetConfig(config.LoadOptions{Prefix: "BEAVER_SLACK_"})
+			cfg, defaultErr = GetConfig(config.WithPrefix("BEAVER_SLACK_"))
 			if defaultErr != nil {
 				return
 			}

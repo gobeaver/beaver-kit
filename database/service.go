@@ -86,7 +86,7 @@ func (db *Database) WithGORM() *Database {
 // Init initializes the global database instance with the configured settings
 func (db *Database) Init() error {
 	cfg := &Config{}
-	if err := config.Load(cfg, config.LoadOptions{Prefix: db.prefix}); err != nil {
+	if err := config.Load(cfg, config.WithPrefix(db.prefix)); err != nil {
 		return err
 	}
 	if db.useGORM {
@@ -98,7 +98,7 @@ func (db *Database) Init() error {
 // Connect creates a new database connection with the configured settings
 func (db *Database) Connect() (*Database, error) {
 	cfg := &Config{}
-	if err := config.Load(cfg, config.LoadOptions{Prefix: db.prefix}); err != nil {
+	if err := config.Load(cfg, config.WithPrefix(db.prefix)); err != nil {
 		return nil, err
 	}
 

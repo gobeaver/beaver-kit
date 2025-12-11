@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 )
 
 func TestService_SendInfo(t *testing.T) {
@@ -17,11 +16,9 @@ func TestService_SendInfo(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Test with Init
-	testConfig := Config{
-		WebhookURL: server.URL,
-		Timeout:    5 * time.Second,
-	}
+	// Test with Init using DefaultConfig
+	testConfig := DefaultConfig()
+	testConfig.WebhookURL = server.URL
 
 	err := Init(testConfig)
 	if err != nil {
@@ -49,11 +46,10 @@ func TestService_SendWarning(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create service directly with New
-	service, err := New(Config{
-		WebhookURL: server.URL,
-		Timeout:    5 * time.Second,
-	})
+	// Create service directly with New using DefaultConfig
+	cfg := DefaultConfig()
+	cfg.WebhookURL = server.URL
+	service, err := New(cfg)
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -78,11 +74,10 @@ func TestService_SendAlert(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create service
-	service, err := New(Config{
-		WebhookURL: server.URL,
-		Timeout:    5 * time.Second,
-	})
+	// Create service using DefaultConfig
+	cfg := DefaultConfig()
+	cfg.WebhookURL = server.URL
+	service, err := New(cfg)
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -107,14 +102,13 @@ func TestService_WithOptions(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create service with config options
-	service, err := New(Config{
-		WebhookURL: server.URL,
-		Channel:    "#testing",
-		Username:   "TestBot",
-		IconEmoji:  ":robot:",
-		Timeout:    5 * time.Second,
-	})
+	// Create service with config options using DefaultConfig as base
+	cfg := DefaultConfig()
+	cfg.WebhookURL = server.URL
+	cfg.Channel = "#testing"
+	cfg.Username = "TestBot"
+	cfg.IconEmoji = ":robot:"
+	service, err := New(cfg)
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -139,11 +133,10 @@ func TestService_SetDefaultOptions(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create service and set default options
-	service, err := New(Config{
-		WebhookURL: server.URL,
-		Timeout:    5 * time.Second,
-	})
+	// Create service and set default options using DefaultConfig
+	cfg := DefaultConfig()
+	cfg.WebhookURL = server.URL
+	service, err := New(cfg)
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -172,11 +165,10 @@ func TestService_ErrorHandling(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Create service
-	service, err := New(Config{
-		WebhookURL: server.URL,
-		Timeout:    5 * time.Second,
-	})
+	// Create service using DefaultConfig
+	cfg := DefaultConfig()
+	cfg.WebhookURL = server.URL
+	service, err := New(cfg)
 	if err != nil {
 		t.Fatalf("Failed to create service: %v", err)
 	}
@@ -189,6 +181,13 @@ func TestService_ErrorHandling(t *testing.T) {
 }
 
 func TestConfig_Validation(t *testing.T) {
+	// Helper to create config with defaults
+	validConfig := func() Config {
+		cfg := DefaultConfig()
+		cfg.WebhookURL = "https://hooks.slack.com/test"
+		return cfg
+	}
+
 	tests := []struct {
 		name    string
 		config  Config
@@ -197,39 +196,38 @@ func TestConfig_Validation(t *testing.T) {
 	}{
 		{
 			name: "Empty webhook URL",
-			config: Config{
-				WebhookURL: "",
-				Timeout:    5 * time.Second,
-			},
+			config: func() Config {
+				cfg := DefaultConfig()
+				cfg.WebhookURL = ""
+				return cfg
+			}(),
 			wantErr: true,
 			errMsg:  "webhook URL required",
 		},
 		{
 			name: "Both icon emoji and URL",
-			config: Config{
-				WebhookURL: "https://hooks.slack.com/test",
-				IconEmoji:  ":robot:",
-				IconURL:    "https://example.com/icon.png",
-				Timeout:    5 * time.Second,
-			},
+			config: func() Config {
+				cfg := validConfig()
+				cfg.IconEmoji = ":robot:"
+				cfg.IconURL = "https://example.com/icon.png"
+				return cfg
+			}(),
 			wantErr: true,
 			errMsg:  "cannot use both icon_emoji and icon_url",
 		},
 		{
 			name: "Invalid timeout",
-			config: Config{
-				WebhookURL: "https://hooks.slack.com/test",
-				Timeout:    0,
-			},
+			config: func() Config {
+				cfg := validConfig()
+				cfg.Timeout = 0
+				return cfg
+			}(),
 			wantErr: true,
 			errMsg:  "timeout must be positive",
 		},
 		{
-			name: "Valid config",
-			config: Config{
-				WebhookURL: "https://hooks.slack.com/test",
-				Timeout:    5 * time.Second,
-			},
+			name:    "Valid config",
+			config:  validConfig(),
 			wantErr: false,
 		},
 	}

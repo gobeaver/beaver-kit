@@ -10,17 +10,17 @@ type Config struct {
 	SecretKey string `env:"URLSIGNER_SECRET_KEY,required"`
 
 	// DefaultExpiry is the default expiration duration for signed URLs
-	DefaultExpiry time.Duration `env:"URLSIGNER_DEFAULT_EXPIRY,default:30m"`
+	DefaultExpiry time.Duration `env:"URLSIGNER_DEFAULT_EXPIRY" envDefault:"30m"`
 
 	// Algorithm is the hashing algorithm to use (currently only sha256 supported)
-	Algorithm string `env:"URLSIGNER_ALGORITHM,default:sha256"`
+	Algorithm string `env:"URLSIGNER_ALGORITHM" envDefault:"sha256"`
 
 	// SignatureParam is the query parameter name for signature
-	SignatureParam string `env:"URLSIGNER_SIGNATURE_PARAM,default:sig"`
+	SignatureParam string `env:"URLSIGNER_SIGNATURE_PARAM" envDefault:"sig"`
 
 	// ExpiresParam is the query parameter name for expiration
-	ExpiresParam string `env:"URLSIGNER_EXPIRES_PARAM,default:expires"`
+	ExpiresParam string `env:"URLSIGNER_EXPIRES_PARAM" envDefault:"expires"`
 
 	// PayloadParam is the query parameter name for payload
-	PayloadParam string `env:"URLSIGNER_PAYLOAD_PARAM,default:payload"`
+	PayloadParam string `env:"URLSIGNER_PAYLOAD_PARAM" envDefault:"payload"`
 }

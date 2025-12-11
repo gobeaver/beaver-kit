@@ -27,34 +27,34 @@ type Middleware struct {
 // MiddlewareConfig configures the OAuth middleware
 type MiddlewareConfig struct {
 	// Security headers
-	EnableSecurityHeaders bool `env:"OAUTH_SECURITY_HEADERS,default:true"`
-	EnableHSTS            bool `env:"OAUTH_HSTS_ENABLED,default:true"`
-	HSTSMaxAge            int  `env:"OAUTH_HSTS_MAX_AGE,default:31536000"`
+	EnableSecurityHeaders bool `env:"OAUTH_SECURITY_HEADERS" envDefault:"true"`
+	EnableHSTS            bool `env:"OAUTH_HSTS_ENABLED" envDefault:"true"`
+	HSTSMaxAge            int  `env:"OAUTH_HSTS_MAX_AGE" envDefault:"31536000"`
 
 	// CORS configuration
-	EnableCORS       bool     `env:"OAUTH_CORS_ENABLED,default:true"`
+	EnableCORS       bool     `env:"OAUTH_CORS_ENABLED" envDefault:"true"`
 	AllowedOrigins   []string `env:"OAUTH_CORS_ORIGINS"`
-	AllowedMethods   []string `env:"OAUTH_CORS_METHODS,default:GET,POST,OPTIONS"`
-	AllowedHeaders   []string `env:"OAUTH_CORS_HEADERS,default:Content-Type,Authorization"`
-	AllowCredentials bool     `env:"OAUTH_CORS_CREDENTIALS,default:true"`
-	MaxAge           int      `env:"OAUTH_CORS_MAX_AGE,default:3600"`
+	AllowedMethods   []string `env:"OAUTH_CORS_METHODS" envDefault:"GET,POST,OPTIONS" envSeparator:","`
+	AllowedHeaders   []string `env:"OAUTH_CORS_HEADERS" envDefault:"Content-Type,Authorization" envSeparator:","`
+	AllowCredentials bool     `env:"OAUTH_CORS_CREDENTIALS" envDefault:"true"`
+	MaxAge           int      `env:"OAUTH_CORS_MAX_AGE" envDefault:"3600"`
 
 	// Rate limiting
-	EnableRateLimiting bool          `env:"OAUTH_RATE_LIMITING,default:true"`
-	RateLimit          int           `env:"OAUTH_RATE_LIMIT,default:100"`
-	RateInterval       time.Duration `env:"OAUTH_RATE_INTERVAL,default:1m"`
-	RateBurstSize      int           `env:"OAUTH_RATE_BURST,default:200"`
+	EnableRateLimiting bool          `env:"OAUTH_RATE_LIMITING" envDefault:"true"`
+	RateLimit          int           `env:"OAUTH_RATE_LIMIT" envDefault:"100"`
+	RateInterval       time.Duration `env:"OAUTH_RATE_INTERVAL" envDefault:"1m"`
+	RateBurstSize      int           `env:"OAUTH_RATE_BURST" envDefault:"200"`
 
 	// Request logging
-	EnableLogging    bool `env:"OAUTH_REQUEST_LOGGING,default:true"`
-	LogSensitiveData bool `env:"OAUTH_LOG_SENSITIVE,default:false"`
+	EnableLogging    bool `env:"OAUTH_REQUEST_LOGGING" envDefault:"true"`
+	LogSensitiveData bool `env:"OAUTH_LOG_SENSITIVE" envDefault:"false"`
 
 	// Timeout configuration
-	RequestTimeout time.Duration `env:"OAUTH_REQUEST_TIMEOUT,default:30s"`
-	IdleTimeout    time.Duration `env:"OAUTH_IDLE_TIMEOUT,default:120s"`
+	RequestTimeout time.Duration `env:"OAUTH_REQUEST_TIMEOUT" envDefault:"30s"`
+	IdleTimeout    time.Duration `env:"OAUTH_IDLE_TIMEOUT" envDefault:"120s"`
 
 	// Security
-	RequireHTTPS   bool     `env:"OAUTH_REQUIRE_HTTPS,default:true"`
+	RequireHTTPS   bool     `env:"OAUTH_REQUIRE_HTTPS" envDefault:"true"`
 	TrustedProxies []string `env:"OAUTH_TRUSTED_PROXIES"`
 }
 

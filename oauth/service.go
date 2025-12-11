@@ -66,7 +66,7 @@ func Init(configs ...Config) error {
 		if len(configs) > 0 {
 			cfg = &configs[0]
 		} else {
-			cfg, defaultErr = GetConfig(config.LoadOptions{Prefix: "BEAVER_"})
+			cfg, defaultErr = GetConfig(config.WithPrefix("BEAVER_"))
 			if defaultErr != nil {
 				return
 			}

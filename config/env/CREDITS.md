@@ -1,16 +1,16 @@
 # Credits
 
 ## Source
-- Package: github.com/joho/godotenv
-- Version: v1.5.1
+- Package: github.com/caarlos0/env
+- Version: v11.3.1
 - License: MIT
-- Original Author: John Barton
+- Original Author: Carlos Alexandro Becker
 
 ## License
 
 The MIT License (MIT)
 
-Copyright (c) 2013 John Barton
+Copyright (c) 2015-2024 Carlos Alexandro Becker
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -34,19 +34,20 @@ SOFTWARE.
 
 | Date       | Version | Reviewer    | Notes                |
 |------------|---------|-------------|----------------------|
-| 2024-01-01 | v1.5.1  | @engineer   | Initial vendor       |
-| 2025-12-10 | v1.5.1  | @engineer   | Update CREDITS format|
+| 2025-12-10 | v11.3.1 | @engineer   | Initial vendor       |
 
 ## Upstream Changes Reviewed
 
-- v1.5.1: Stable release with comprehensive .env file parsing support
+- v11.3.1: Bug fix for Options.Environment behavior (prevents merging with default environment)
+- Retraction of v11.3.0 due to the above bug
 
 ## Vendored Files
 
 The following files were vendored from the upstream repository:
 
-- `godotenv.go` - Main package implementation (Load, Overload, Read, Parse, Marshal)
-- `parser.go` - .env file parsing logic
-- `godotenv_test.go` - Test suite (optional, for verification)
+- `env.go` - Main package implementation
+- `error.go` - Error types and constructors
+- `env_tomap.go` - Non-Windows toMap implementation
+- `env_tomap_windows.go` - Windows-specific toMap implementation
 
-Test fixtures were intentionally excluded from vendoring.
+Test files were intentionally excluded from vendoring.

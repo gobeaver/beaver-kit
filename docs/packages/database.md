@@ -122,48 +122,51 @@ func main() {
 ```go
 type Config struct {
     // Database driver: postgres, mysql, sqlite, turso, libsql
-    Driver string `env:"BEAVER_DB_DRIVER,default:sqlite"`
-    
+    Driver string `env:"DB_DRIVER" envDefault:"sqlite"`
+
     // Connection details
-    Host     string `env:"BEAVER_DB_HOST,default:localhost"`
-    Port     string `env:"BEAVER_DB_PORT"`                    // Driver default if empty
-    Database string `env:"BEAVER_DB_DATABASE,default:app.db"` // SQLite file path for sqlite
-    Username string `env:"BEAVER_DB_USERNAME"`
-    Password string `env:"BEAVER_DB_PASSWORD"`
-    
+    Host     string `env:"DB_HOST" envDefault:"localhost"`
+    Port     string `env:"DB_PORT"`                    // Driver default if empty
+    Database string `env:"DB_DATABASE" envDefault:"app.db"` // SQLite file path for sqlite
+    Username string `env:"DB_USERNAME"`
+    Password string `env:"DB_PASSWORD"`
+
     // Connection URL (overrides individual settings)
-    URL string `env:"BEAVER_DB_URL"`
-    
+    URL string `env:"DB_URL"`
+
     // SSL/TLS settings
-    SSLMode    string `env:"BEAVER_DB_SSL_MODE"`        // PostgreSQL: disable, require, verify-ca, verify-full
-    TLSConfig  string `env:"BEAVER_DB_TLS_CONFIG"`      // MySQL: true, false, skip-verify, preferred
-    CertFile   string `env:"BEAVER_DB_CERT_FILE"`       // Client certificate file
-    KeyFile    string `env:"BEAVER_DB_KEY_FILE"`        // Client key file
-    CAFile     string `env:"BEAVER_DB_CA_FILE"`         // CA certificate file
-    
+    SSLMode    string `env:"DB_SSL_MODE"`        // PostgreSQL: disable, require, verify-ca, verify-full
+    TLSConfig  string `env:"DB_TLS_CONFIG"`      // MySQL: true, false, skip-verify, preferred
+    CertFile   string `env:"DB_CERT_FILE"`       // Client certificate file
+    KeyFile    string `env:"DB_KEY_FILE"`        // Client key file
+    CAFile     string `env:"DB_CA_FILE"`         // CA certificate file
+
     // Connection pool settings
-    MaxOpenConns    int           `env:"BEAVER_DB_MAX_OPEN_CONNS,default:25"`
-    MaxIdleConns    int           `env:"BEAVER_DB_MAX_IDLE_CONNS,default:5"`
-    ConnMaxLifetime time.Duration `env:"BEAVER_DB_CONN_MAX_LIFETIME,default:300s"`
-    ConnMaxIdleTime time.Duration `env:"BEAVER_DB_CONN_MAX_IDLE_TIME,default:60s"`
+    MaxOpenConns    int           `env:"DB_MAX_OPEN_CONNS" envDefault:"25"`
+    MaxIdleConns    int           `env:"DB_MAX_IDLE_CONNS" envDefault:"5"`
+    ConnMaxLifetime time.Duration `env:"DB_CONN_MAX_LIFETIME" envDefault:"300s"`
+    ConnMaxIdleTime time.Duration `env:"DB_CONN_MAX_IDLE_TIME" envDefault:"60s"`
     
     // Additional connection parameters
-    Params map[string]string `env:"BEAVER_DB_PARAMS"` // JSON string: {"param1":"value1"}
-    
+    Params map[string]string `env:"DB_PARAMS"` // JSON string: {"param1":"value1"}
+
     // ORM settings
-    ORM              string `env:"BEAVER_DB_ORM"`                     // "gorm" to enable
-    DisableORMLog    bool   `env:"BEAVER_DB_DISABLE_ORM_LOG,default:false"`
-    AutoMigrate      bool   `env:"BEAVER_DB_AUTO_MIGRATE,default:false"`
-    MigrationsPath   string `env:"BEAVER_DB_MIGRATIONS_PATH,default:migrations"`
-    
+    ORM              string `env:"DB_ORM"`                         // "gorm" to enable
+    DisableORMLog    bool   `env:"DB_DISABLE_ORM_LOG" envDefault:"false"`
+    AutoMigrate      bool   `env:"DB_AUTO_MIGRATE" envDefault:"false"`
+    MigrationsPath   string `env:"DB_MIGRATIONS_PATH" envDefault:"migrations"`
+
     // Debug and monitoring
-    Debug           bool          `env:"BEAVER_DB_DEBUG,default:false"`
-    SlowQueryTime   time.Duration `env:"BEAVER_DB_SLOW_QUERY_TIME,default:200ms"`
-    HealthCheckTime time.Duration `env:"BEAVER_DB_HEALTH_CHECK_TIME,default:30s"`
-    
+    Debug           bool          `env:"DB_DEBUG" envDefault:"false"`
+    SlowQueryTime   time.Duration `env:"DB_SLOW_QUERY_TIME" envDefault:"200ms"`
+    HealthCheckTime time.Duration `env:"DB_HEALTH_CHECK_TIME" envDefault:"30s"`
+
     // Turso/LibSQL specific
-    AuthToken string `env:"BEAVER_DB_AUTH_TOKEN"` // Required for Turso
+    AuthToken string `env:"DB_AUTH_TOKEN"` // Required for Turso
 }
+
+// Note: The BEAVER_ prefix is applied automatically by config.Load().
+// Use config.WithPrefix("") to disable the prefix.
 ```
 
 ### Environment Variables Reference

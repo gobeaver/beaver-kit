@@ -10,7 +10,7 @@ import (
 // Config defines the OAuth service configuration
 type Config struct {
 	// Provider specifies the OAuth provider (google, github, apple, twitter, custom)
-	Provider string `env:"OAUTH_PROVIDER,default:google"`
+	Provider string `env:"OAUTH_PROVIDER" envDefault:"google"`
 
 	// ClientID is the OAuth application's client ID
 	ClientID string `env:"OAUTH_CLIENT_ID,required"`
@@ -22,31 +22,31 @@ type Config struct {
 	RedirectURL string `env:"OAUTH_REDIRECT_URL,required"`
 
 	// Scopes is a comma-separated list of OAuth scopes
-	Scopes string `env:"OAUTH_SCOPES,default:openid,profile,email"`
+	Scopes string `env:"OAUTH_SCOPES" envDefault:"openid,profile,email"`
 
 	// State is the default state parameter for CSRF protection
 	State string `env:"OAUTH_STATE"`
 
 	// StateGenerator defines how to generate state tokens (uuid, secure, custom)
-	StateGenerator string `env:"OAUTH_STATE_GENERATOR,default:secure"`
+	StateGenerator string `env:"OAUTH_STATE_GENERATOR" envDefault:"secure"`
 
 	// PKCEEnabled enables PKCE flow for enhanced security
-	PKCEEnabled bool `env:"OAUTH_PKCE_ENABLED,default:true"`
+	PKCEEnabled bool `env:"OAUTH_PKCE_ENABLED" envDefault:"true"`
 
 	// PKCEMethod is the PKCE challenge method (S256 or plain)
-	PKCEMethod string `env:"OAUTH_PKCE_METHOD,default:S256"`
+	PKCEMethod string `env:"OAUTH_PKCE_METHOD" envDefault:"S256"`
 
 	// TokenCacheDuration is how long to cache tokens
-	TokenCacheDuration time.Duration `env:"OAUTH_TOKEN_CACHE_DURATION,default:1h"`
+	TokenCacheDuration time.Duration `env:"OAUTH_TOKEN_CACHE_DURATION" envDefault:"1h"`
 
 	// StateTimeout is how long state parameters are valid
-	StateTimeout time.Duration `env:"OAUTH_STATE_TIMEOUT,default:5m"`
+	StateTimeout time.Duration `env:"OAUTH_STATE_TIMEOUT" envDefault:"5m"`
 
 	// HTTPTimeout is the timeout for HTTP requests
-	HTTPTimeout time.Duration `env:"OAUTH_HTTP_TIMEOUT,default:30s"`
+	HTTPTimeout time.Duration `env:"OAUTH_HTTP_TIMEOUT" envDefault:"30s"`
 
 	// Debug enables debug logging
-	Debug bool `env:"OAUTH_DEBUG,default:false"`
+	Debug bool `env:"OAUTH_DEBUG" envDefault:"false"`
 
 	// Custom provider configuration (for generic OAuth2 providers)
 	AuthURL     string `env:"OAUTH_AUTH_URL"`
@@ -59,11 +59,11 @@ type Config struct {
 	ApplePrivateKey string `env:"OAUTH_APPLE_PRIVATE_KEY"`
 
 	// Twitter API version (1.1 or 2)
-	TwitterAPIVersion string `env:"OAUTH_TWITTER_API_VERSION,default:2"`
+	TwitterAPIVersion string `env:"OAUTH_TWITTER_API_VERSION" envDefault:"2"`
 }
 
-// GetConfig returns config loaded from environment with optional LoadOptions
-func GetConfig(opts ...config.LoadOptions) (*Config, error) {
+// GetConfig returns config loaded from environment with optional options
+func GetConfig(opts ...config.Option) (*Config, error) {
 	cfg := &Config{}
 	if err := config.Load(cfg, opts...); err != nil {
 		return nil, fmt.Errorf("failed to load oauth config: %w", err)
@@ -126,7 +126,7 @@ func WithPrefix(prefix string) *Builder {
 // Init initializes the OAuth service with the builder's prefix
 func (b *Builder) Init() error {
 	cfg := &Config{}
-	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+	if err := config.Load(cfg, config.WithPrefix(b.prefix)); err != nil {
 		return err
 	}
 	return Init(*cfg)
@@ -135,7 +135,7 @@ func (b *Builder) Init() error {
 // New creates a new OAuth service instance with the builder's prefix
 func (b *Builder) New() (*Service, error) {
 	cfg := &Config{}
-	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+	if err := config.Load(cfg, config.WithPrefix(b.prefix)); err != nil {
 		return nil, err
 	}
 	return New(*cfg)

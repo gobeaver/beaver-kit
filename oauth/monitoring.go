@@ -401,11 +401,11 @@ type MonitoringService struct {
 
 // MonitoringConfig configures the monitoring service
 type MonitoringConfig struct {
-	Enabled         bool          `env:"OAUTH_MONITORING_ENABLED,default:true"`
-	MetricsInterval time.Duration `env:"OAUTH_METRICS_INTERVAL,default:1m"`
-	RetentionPeriod time.Duration `env:"OAUTH_METRICS_RETENTION,default:24h"`
+	Enabled         bool          `env:"OAUTH_MONITORING_ENABLED" envDefault:"true"`
+	MetricsInterval time.Duration `env:"OAUTH_METRICS_INTERVAL" envDefault:"1m"`
+	RetentionPeriod time.Duration `env:"OAUTH_METRICS_RETENTION" envDefault:"24h"`
 	ExportEndpoint  string        `env:"OAUTH_METRICS_ENDPOINT"`
-	ExportFormat    string        `env:"OAUTH_METRICS_FORMAT,default:json"`
+	ExportFormat    string        `env:"OAUTH_METRICS_FORMAT" envDefault:"json"`
 }
 
 // NewMonitoringService creates a new monitoring service

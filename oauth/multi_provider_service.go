@@ -25,19 +25,19 @@ type MultiProviderConfig struct {
 	Providers map[string]ProviderConfig `env:"OAUTH_PROVIDERS"`
 
 	// Global settings
-	PKCEEnabled        bool          `env:"OAUTH_PKCE_ENABLED,default:true"`
-	PKCEMethod         string        `env:"OAUTH_PKCE_METHOD,default:S256"`
-	SessionTimeout     time.Duration `env:"OAUTH_SESSION_TIMEOUT,default:5m"`
-	TokenCacheDuration time.Duration `env:"OAUTH_TOKEN_CACHE_DURATION,default:1h"`
-	StateGenerator     string        `env:"OAUTH_STATE_GENERATOR,default:secure"`
-	HTTPTimeout        time.Duration `env:"OAUTH_HTTP_TIMEOUT,default:30s"`
+	PKCEEnabled        bool          `env:"OAUTH_PKCE_ENABLED" envDefault:"true"`
+	PKCEMethod         string        `env:"OAUTH_PKCE_METHOD" envDefault:"S256"`
+	SessionTimeout     time.Duration `env:"OAUTH_SESSION_TIMEOUT" envDefault:"5m"`
+	TokenCacheDuration time.Duration `env:"OAUTH_TOKEN_CACHE_DURATION" envDefault:"1h"`
+	StateGenerator     string        `env:"OAUTH_STATE_GENERATOR" envDefault:"secure"`
+	HTTPTimeout        time.Duration `env:"OAUTH_HTTP_TIMEOUT" envDefault:"30s"`
 
 	// Security settings
-	EncryptSessions bool   `env:"OAUTH_ENCRYPT_SESSIONS,default:false"`
+	EncryptSessions bool   `env:"OAUTH_ENCRYPT_SESSIONS" envDefault:"false"`
 	SecretKey       string `env:"OAUTH_SECRET_KEY"`
 
 	// Debug mode
-	Debug bool `env:"OAUTH_DEBUG,default:false"`
+	Debug bool `env:"OAUTH_DEBUG" envDefault:"false"`
 }
 
 // NewMultiProviderService creates a new multi-provider OAuth service

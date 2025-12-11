@@ -272,22 +272,32 @@ templates:
 
 ### Config Package
 
-The foundation for all Beaver Kit packages - loads configuration from environment variables into Go structs.
+The foundation for all Beaver Kit packages - loads configuration from environment variables into Go structs. Wraps vendored `caarlos0/env` with zero external dependencies.
 
 ```go
 import "github.com/gobeaver/beaver-kit/config"
 
 type AppConfig struct {
-    DatabaseURL string `env:"DATABASE_URL,default:postgres://localhost/myapp"`
-    Port        int    `env:"PORT,default:8080"`
-    Debug       bool   `env:"DEBUG,default:false"`
+    DatabaseURL string        `env:"DATABASE_URL" envDefault:"postgres://localhost/myapp"`
+    Port        int           `env:"PORT" envDefault:"8080"`
+    Debug       bool          `env:"DEBUG" envDefault:"false"`
+    Timeout     time.Duration `env:"TIMEOUT" envDefault:"30s"`
+    Hosts       []string      `env:"HOSTS" envSeparator:","`
 }
 
 func main() {
     cfg := &AppConfig{}
+
+    // Load with default BEAVER_ prefix
     if err := config.Load(cfg); err != nil {
         panic(err)
     }
+
+    // Or with custom prefix
+    config.Load(cfg, config.WithPrefix("MYAPP_"))
+
+    // Or with no prefix
+    config.Load(cfg, config.WithPrefix(""))
 
     fmt.Printf("Starting on port %d\n", cfg.Port)
 }

@@ -98,15 +98,15 @@ func (b *Builder) GetConfig() (*Config, error) {
 	// Create a temporary struct to handle string duration
 	type tempConfig struct {
 		SecretKey      string `env:"URLSIGNER_SECRET_KEY,required"`
-		DefaultExpiry  string `env:"URLSIGNER_DEFAULT_EXPIRY,default:30m"`
-		Algorithm      string `env:"URLSIGNER_ALGORITHM,default:sha256"`
-		SignatureParam string `env:"URLSIGNER_SIGNATURE_PARAM,default:sig"`
-		ExpiresParam   string `env:"URLSIGNER_EXPIRES_PARAM,default:expires"`
-		PayloadParam   string `env:"URLSIGNER_PAYLOAD_PARAM,default:payload"`
+		DefaultExpiry  string `env:"URLSIGNER_DEFAULT_EXPIRY" envDefault:"30m"`
+		Algorithm      string `env:"URLSIGNER_ALGORITHM" envDefault:"sha256"`
+		SignatureParam string `env:"URLSIGNER_SIGNATURE_PARAM" envDefault:"sig"`
+		ExpiresParam   string `env:"URLSIGNER_EXPIRES_PARAM" envDefault:"expires"`
+		PayloadParam   string `env:"URLSIGNER_PAYLOAD_PARAM" envDefault:"payload"`
 	}
 
 	tmpCfg := &tempConfig{}
-	if err := config.Load(tmpCfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+	if err := config.Load(tmpCfg, config.WithPrefix(b.prefix)); err != nil {
 		return nil, err
 	}
 

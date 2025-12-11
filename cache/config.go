@@ -10,33 +10,33 @@ import (
 // Config holds cache configuration
 type Config struct {
 	// Driver specifies cache backend: "memory" or "redis"
-	Driver string `env:"CACHE_DRIVER,default:memory"`
+	Driver string `env:"CACHE_DRIVER" envDefault:"memory"`
 
 	// Redis specific settings
-	Host     string `env:"CACHE_HOST,default:localhost"`
-	Port     string `env:"CACHE_PORT,default:6379"`
+	Host     string `env:"CACHE_HOST" envDefault:"localhost"`
+	Port     string `env:"CACHE_PORT" envDefault:"6379"`
 	Password string `env:"CACHE_PASSWORD"`
-	Database int    `env:"CACHE_DATABASE,default:0"`
+	Database int    `env:"CACHE_DATABASE" envDefault:"0"`
 
 	// Connection URL (overrides host/port/password)
 	URL string `env:"CACHE_URL"`
 
 	// Connection pool settings
-	MaxRetries      int `env:"CACHE_MAX_RETRIES,default:3"`
-	PoolSize        int `env:"CACHE_POOL_SIZE,default:10"`
-	MinIdleConns    int `env:"CACHE_MIN_IDLE_CONNS,default:2"`
-	MaxIdleConns    int `env:"CACHE_MAX_IDLE_CONNS,default:5"`
-	ConnMaxLifetime int `env:"CACHE_CONN_MAX_LIFETIME,default:0"`  // seconds
-	ConnMaxIdleTime int `env:"CACHE_CONN_MAX_IDLE_TIME,default:0"` // seconds
+	MaxRetries      int `env:"CACHE_MAX_RETRIES" envDefault:"3"`
+	PoolSize        int `env:"CACHE_POOL_SIZE" envDefault:"10"`
+	MinIdleConns    int `env:"CACHE_MIN_IDLE_CONNS" envDefault:"2"`
+	MaxIdleConns    int `env:"CACHE_MAX_IDLE_CONNS" envDefault:"5"`
+	ConnMaxLifetime int `env:"CACHE_CONN_MAX_LIFETIME" envDefault:"0"`  // seconds
+	ConnMaxIdleTime int `env:"CACHE_CONN_MAX_IDLE_TIME" envDefault:"0"` // seconds
 
 	// Memory cache specific
-	MaxSize         int64  `env:"CACHE_MAX_SIZE,default:0"`          // max memory in bytes
-	MaxKeys         int    `env:"CACHE_MAX_KEYS,default:0"`          // max number of keys
-	DefaultTTL      string `env:"CACHE_DEFAULT_TTL,default:0"`       // default TTL as duration string
-	CleanupInterval string `env:"CACHE_CLEANUP_INTERVAL,default:1m"` // cleanup interval as duration string
+	MaxSize         int64  `env:"CACHE_MAX_SIZE" envDefault:"0"`          // max memory in bytes
+	MaxKeys         int    `env:"CACHE_MAX_KEYS" envDefault:"0"`          // max number of keys
+	DefaultTTL      string `env:"CACHE_DEFAULT_TTL" envDefault:"0"`       // default TTL as duration string
+	CleanupInterval string `env:"CACHE_CLEANUP_INTERVAL" envDefault:"1m"` // cleanup interval as duration string
 
 	// TLS settings for Redis
-	UseTLS   bool   `env:"CACHE_USE_TLS,default:false"`
+	UseTLS   bool   `env:"CACHE_USE_TLS" envDefault:"false"`
 	CertFile string `env:"CACHE_CERT_FILE"`
 	KeyFile  string `env:"CACHE_KEY_FILE"`
 	CAFile   string `env:"CACHE_CA_FILE"`
@@ -47,9 +47,9 @@ type Config struct {
 }
 
 // GetConfig loads configuration from environment variables
-func GetConfig() (*Config, error) {
+func GetConfig(opts ...config.Option) (*Config, error) {
 	cfg := &Config{}
-	if err := config.Load(cfg); err != nil {
+	if err := config.Load(cfg, opts...); err != nil {
 		return nil, err
 	}
 

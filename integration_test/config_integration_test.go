@@ -62,12 +62,12 @@ func TestNewPrefixFunctionality(t *testing.T) {
 	os.Setenv("STAGING_DB_HOST", "staging-db.example.com")
 	os.Setenv("PROD_CACHE_DRIVER", "redis")
 	os.Setenv("PROD_CACHE_HOST", "prod-redis.example.com")
-	os.Setenv("DEV_SLACK_USERNAME", "DevBot")
+	os.Setenv("DEV_USERNAME", "DevBot") // slack.Config uses `env:"USERNAME"`
 
 	// Test database with custom prefix
 	stagingDB := database.WithPrefix("STAGING_")
 	dbCfg := &database.Config{}
-	err := config.Load(dbCfg, config.LoadOptions{Prefix: "STAGING_"})
+	err := config.Load(dbCfg, config.WithPrefix("STAGING_"))
 	if err != nil {
 		t.Fatalf("Failed to load staging database config: %v", err)
 	}
@@ -81,7 +81,7 @@ func TestNewPrefixFunctionality(t *testing.T) {
 	// Test cache with custom prefix
 	prodCache := cache.WithPrefix("PROD_")
 	cacheCfg := &cache.Config{}
-	err = config.Load(cacheCfg, config.LoadOptions{Prefix: "PROD_"})
+	err = config.Load(cacheCfg, config.WithPrefix("PROD_"))
 	if err != nil {
 		t.Fatalf("Failed to load prod cache config: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestNewPrefixFunctionality(t *testing.T) {
 	// Test slack with custom prefix
 	devSlack := slack.WithPrefix("DEV_")
 	slackCfg := &slack.Config{}
-	err = config.Load(slackCfg, config.LoadOptions{Prefix: "DEV_"})
+	err = config.Load(slackCfg, config.WithPrefix("DEV_"))
 	if err != nil {
 		t.Fatalf("Failed to load dev slack config: %v", err)
 	}
@@ -122,7 +122,7 @@ func TestEmptyPrefix(t *testing.T) {
 
 	// Test database with empty prefix
 	dbCfg := &database.Config{}
-	err := config.Load(dbCfg, config.LoadOptions{Prefix: ""})
+	err := config.Load(dbCfg, config.WithPrefix(""))
 	if err != nil {
 		t.Fatalf("Failed to load database config with empty prefix: %v", err)
 	}
@@ -135,7 +135,7 @@ func TestEmptyPrefix(t *testing.T) {
 
 	// Test cache with empty prefix
 	cacheCfg := &cache.Config{}
-	err = config.Load(cacheCfg, config.LoadOptions{Prefix: ""})
+	err = config.Load(cacheCfg, config.WithPrefix(""))
 	if err != nil {
 		t.Fatalf("Failed to load cache config with empty prefix: %v", err)
 	}
@@ -164,13 +164,13 @@ func TestMultipleInstances(t *testing.T) {
 
 	// Load configs using builders
 	publicCfg := &cache.Config{}
-	err := config.Load(publicCfg, config.LoadOptions{Prefix: "PUBLIC_"})
+	err := config.Load(publicCfg, config.WithPrefix("PUBLIC_"))
 	if err != nil {
 		t.Fatalf("Failed to load public cache config: %v", err)
 	}
 
 	privateCfg := &cache.Config{}
-	err = config.Load(privateCfg, config.LoadOptions{Prefix: "PRIVATE_"})
+	err = config.Load(privateCfg, config.WithPrefix("PRIVATE_"))
 	if err != nil {
 		t.Fatalf("Failed to load private cache config: %v", err)
 	}
@@ -217,20 +217,20 @@ func TestDefaultValues(t *testing.T) {
 	}
 }
 
-// TestConfigLoadOptionsValidation tests that LoadOptions are properly validated
+// TestConfigLoadOptionsValidation tests that functional options are properly applied
 func TestConfigLoadOptionsValidation(t *testing.T) {
 	testCfg := &struct {
-		TestValue string `env:"TEST_VALUE,default:default"`
+		TestValue string `env:"TEST_VALUE" envDefault:"default"`
 	}{}
 
 	// Test with empty prefix
-	err := config.Load(testCfg, config.LoadOptions{Prefix: ""})
+	err := config.Load(testCfg, config.WithPrefix(""))
 	if err != nil {
 		t.Fatalf("Expected no error with empty prefix, got: %v", err)
 	}
 
 	// Test with valid prefix
-	err = config.Load(testCfg, config.LoadOptions{Prefix: "CUSTOM_"})
+	err = config.Load(testCfg, config.WithPrefix("CUSTOM_"))
 	if err != nil {
 		t.Fatalf("Expected no error with valid prefix, got: %v", err)
 	}

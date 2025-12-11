@@ -38,7 +38,7 @@ func WithPrefix(prefix string) *Builder {
 // Init initializes the global cache instance using the builder's prefix
 func (b *Builder) Init() error {
 	cfg := &Config{}
-	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+	if err := config.Load(cfg, config.WithPrefix(b.prefix)); err != nil {
 		return err
 	}
 	return Init(*cfg)
@@ -47,7 +47,7 @@ func (b *Builder) Init() error {
 // New creates a new cache instance using the builder's prefix
 func (b *Builder) New() (Cache, error) {
 	cfg := &Config{}
-	if err := config.Load(cfg, config.LoadOptions{Prefix: b.prefix}); err != nil {
+	if err := config.Load(cfg, config.WithPrefix(b.prefix)); err != nil {
 		return nil, err
 	}
 	return New(*cfg)
